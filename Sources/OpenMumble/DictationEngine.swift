@@ -14,10 +14,13 @@ final class DictationEngine: ObservableObject {
     @Published var lastRawText: String = ""
     @Published var lastCleanText: String = ""
 
-    @AppStorage("whisperModel") var whisperModel = "small.en"
+    @AppStorage("whisperModel") var whisperModel = "large-v3"
+    @AppStorage("cleanupEnabled") var cleanupEnabled = true
+    @AppStorage("cleanupProvider") var cleanupProvider = "claude"
     @AppStorage("claudeApiKey") var claudeApiKey = ""
     @AppStorage("claudeModel") var claudeModel = "claude-sonnet-4-20250514"
-    @AppStorage("cleanupEnabled") var cleanupEnabled = true
+    @AppStorage("openaiApiKey") var openaiApiKey = ""
+    @AppStorage("openaiModel") var openaiModel = "gpt-4o-mini"
     @AppStorage("hotkeyChoice") var hotkeyChoice = "ctrl"
 
     private let recorder = AudioRecorder()
@@ -50,6 +53,15 @@ final class DictationEngine: ObservableObject {
 
     func reloadHotkey() {
         hotkeyManager.update(hotkey: resolvedHotkey)
+    }
+
+    /// The active API key for the selected provider, if any.
+    var activeApiKey: String {
+        switch TextProcessor.Provider(rawValue: cleanupProvider) {
+        case .claude:  return claudeApiKey
+        case .openai:  return openaiApiKey
+        case .none:    return ""
+        }
     }
 
     // MARK: - Pipeline
@@ -88,9 +100,12 @@ final class DictationEngine: ObservableObject {
 
             // Cleanup
             var final = raw
-            if cleanupEnabled && !claudeApiKey.isEmpty {
+            let provider = TextProcessor.Provider(rawValue: cleanupProvider) ?? .claude
+            let key = activeApiKey
+            if cleanupEnabled && !key.isEmpty {
                 state = .cleaning
-                let processor = ClaudeProcessor(apiKey: claudeApiKey, model: claudeModel)
+                let model = provider == .claude ? claudeModel : openaiModel
+                let processor = TextProcessor(provider: provider, apiKey: key, model: model)
                 let cleaned = try await processor.cleanup(raw)
                 if cleaned != raw {
                     print("[openmumble] Cleaned: \(cleaned)")
@@ -113,4 +128,3 @@ final class DictationEngine: ObservableObject {
         HotkeyManager.Hotkey(rawValue: hotkeyChoice) ?? .ctrl
     }
 }
-

@@ -2,8 +2,8 @@
 
 Local-first voice dictation for macOS. Hold a key, speak, release — your words appear in the active window.
 
-- **WhisperKit** — local Whisper on Apple Silicon via Core ML. No cloud, sub-second latency.
-- **Claude API** (optional) — cleans up filler words, grammar, self-corrections.
+- **WhisperKit** — local Whisper `large-v3` on Apple Silicon via Core ML. No cloud, sub-second latency.
+- **Claude or OpenAI** (optional) — cleans up filler words, grammar, self-corrections. Bring your own API key.
 - **Push-to-talk** — hold a modifier key, release to transcribe and paste.
 - **Menu bar app** — lives in your menu bar, no dock icon.
 
@@ -33,12 +33,13 @@ Open via menu bar → Settings:
 
 | Setting | Default | Options |
 |---|---|---|
-| Whisper model | `small.en` | `tiny.en`, `base.en`, `small.en`, `medium`, `large-v3` |
+| Whisper model | `large-v3` | `tiny.en`, `base.en`, `small.en`, `medium`, `large-v3` |
 | Hotkey | `ctrl` | `ctrl`, `option`, `shift`, `fn`, `right_option` |
-| Claude cleanup | on | Toggle + API key |
+| Cleanup provider | `claude` | `claude`, `openai` |
 | Claude model | `claude-sonnet-4-20250514` | Any Anthropic model ID |
+| OpenAI model | `gpt-4o-mini` | Any OpenAI model ID |
 
-Set your Anthropic API key in Settings to enable cleanup. Without it, raw Whisper output is used — the entire pipeline stays offline.
+Set an API key for your chosen provider in Settings to enable cleanup. Without one, raw Whisper output is used — the entire pipeline stays offline.
 
 ## Architecture
 
@@ -47,13 +48,13 @@ OpenMumbleApp          SwiftUI menu bar app, entry point
 DictationEngine        Orchestrator: record → transcribe → cleanup → paste
 AudioRecorder          AVAudioEngine mic capture, resamples to 16 kHz mono
 Transcriber            WhisperKit wrapper, lazy model loading
-ClaudeProcessor        Raw URLSession to Anthropic Messages API
+TextProcessor          Raw URLSession to Claude or OpenAI API
 TextInserter           NSPasteboard + CGEvent ⌘V simulation
 HotkeyManager          NSEvent global/local monitor for modifier keys
 SettingsView           SwiftUI settings form
 ```
 
-One external dependency: [WhisperKit](https://github.com/argmaxinc/WhisperKit). Claude API calls use raw `URLSession` — no SDK.
+One external dependency: [WhisperKit](https://github.com/argmaxinc/WhisperKit). API calls use raw `URLSession` — no SDK.
 
 ## Permissions
 

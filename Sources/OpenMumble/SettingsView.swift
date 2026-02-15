@@ -6,6 +6,7 @@ struct SettingsView: View {
 
     private let models = ["tiny.en", "base.en", "small.en", "medium", "large-v3"]
     private let hotkeys = HotkeyManager.Hotkey.allCases
+    private let providers = TextProcessor.Provider.allCases
 
     var body: some View {
         Form {
@@ -15,12 +16,26 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Claude cleanup") {
+            Section("Cleanup") {
                 Toggle("Enable cleanup", isOn: $engine.cleanupEnabled)
-                SecureField("API key", text: $engine.claudeApiKey)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Model", text: $engine.claudeModel)
-                    .textFieldStyle(.roundedBorder)
+
+                Picker("Provider", selection: $engine.cleanupProvider) {
+                    ForEach(providers, id: \.rawValue) { p in
+                        Text(p.rawValue.capitalized).tag(p.rawValue)
+                    }
+                }
+
+                if engine.cleanupProvider == "claude" {
+                    SecureField("Claude API key", text: $engine.claudeApiKey)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Claude model", text: $engine.claudeModel)
+                        .textFieldStyle(.roundedBorder)
+                } else {
+                    SecureField("OpenAI API key", text: $engine.openaiApiKey)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("OpenAI model", text: $engine.openaiModel)
+                        .textFieldStyle(.roundedBorder)
+                }
             }
 
             Section("Hotkey") {
@@ -35,7 +50,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 360, height: 340)
+        .frame(width: 360, height: 380)
         .padding()
     }
 }
