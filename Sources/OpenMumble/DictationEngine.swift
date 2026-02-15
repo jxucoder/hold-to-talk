@@ -1,5 +1,6 @@
 import SwiftUI
 import ApplicationServices
+import AppKit
 
 /// Orchestrates the record → transcribe → cleanup → insert pipeline.
 @MainActor
@@ -28,6 +29,7 @@ final class DictationEngine: ObservableObject {
     private var transcriber: Transcriber?
     private let hotkeyManager = HotkeyManager()
     private var didRequestPermissions = false
+    private var recordingTargetAppPID: pid_t?
 
     func start() {
         requestPermissionsIfNeeded()
@@ -72,6 +74,7 @@ final class DictationEngine: ObservableObject {
 
     private func beginRecording() {
         guard state == .idle else { return }
+        recordingTargetAppPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         state = .recording
         try? recorder.start()
     }
@@ -119,13 +122,19 @@ final class DictationEngine: ObservableObject {
             lastCleanText = final
 
             // Insert
-            TextInserter.insert(final)
-            print("[openmumble] Inserted.")
+            reactivateRecordingTargetAppIfNeeded()
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            if TextInserter.insert(final) {
+                print("[openmumble] Inserted.")
+            } else {
+                print("[openmumble] Insert failed. Check Accessibility and Input Monitoring permissions.")
+            }
         } catch {
             print("[openmumble] Error: \(error)")
         }
 
         state = .idle
+        recordingTargetAppPID = nil
     }
 
     private var resolvedHotkey: HotkeyManager.Hotkey {
@@ -150,5 +159,12 @@ final class DictationEngine: ObservableObject {
                 print("[openmumble] Input Monitoring access may be required for global hotkeys.")
             }
         }
+    }
+
+    private func reactivateRecordingTargetAppIfNeeded() {
+        guard let pid = recordingTargetAppPID else { return }
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return }
+        guard app.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
+        _ = app.activate(options: [])
     }
 }
