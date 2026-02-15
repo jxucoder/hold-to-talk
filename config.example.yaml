@@ -1,0 +1,32 @@
+# OpenMumble configuration
+
+# Anthropic API key for Claude cleanup pass (optional).
+# If omitted, raw Whisper output is used without cleanup.
+# Can also be set via ANTHROPIC_API_KEY environment variable.
+anthropic_api_key: ""
+
+# Claude model to use for text cleanup
+claude_model: "claude-sonnet-4-20250514"
+
+# Whisper settings
+whisper:
+  # Model size: tiny, base, small, medium, large-v3
+  model_size: "small.en"
+  # Device: auto, cpu, cuda
+  device: "auto"
+  # Compute type: int8, float16, float32
+  compute_type: "int8"
+
+# Audio settings
+audio:
+  # Sample rate in Hz
+  sample_rate: 16000
+  # Number of audio channels (1 = mono)
+  channels: 1
+
+# Hotkey to hold for recording (release to transcribe)
+# Options: ctrl, alt, shift, cmd (macOS), or any character key
+hotkey: "ctrl"
+
+# Whether to run Claude cleanup pass on transcribed text
+enable_cleanup: true

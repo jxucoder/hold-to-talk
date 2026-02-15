@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "openmumble"
+version = "0.1.0"
+description = "Local-first voice dictation with Whisper STT and Claude API cleanup"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+dependencies = [
+    "faster-whisper>=1.0.0",
+    "sounddevice>=0.4.6",
+    "numpy>=1.24",
+    "anthropic>=0.39.0",
+    "pynput>=1.7.6",
+    "pyperclip>=1.8.2",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+mlx = ["mlx-whisper>=0.1.0"]
+
+[project.scripts]
+openmumble = "openmumble.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
