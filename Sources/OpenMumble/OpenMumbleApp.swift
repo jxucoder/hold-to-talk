@@ -8,6 +8,16 @@ struct OpenMumbleApp: App {
     var body: some Scene {
         MenuBarExtra {
             VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(nsImage: NSApplication.shared.applicationIconImage)
+                        .resizable()
+                        .frame(width: 20, height: 20)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    Text("OpenMumble")
+                        .font(.headline)
+                }
+                .padding(.bottom, 2)
+
                 label
                 Divider()
 
@@ -32,7 +42,7 @@ struct OpenMumbleApp: App {
             .frame(width: 260)
             .onAppear { engine.start() }
         } label: {
-            Image(systemName: icon)
+            Label("OpenMumble", systemImage: icon)
         }
 
         Window("OpenMumble Settings", id: "settings") {

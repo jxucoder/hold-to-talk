@@ -6,6 +6,7 @@ build:
 	@mkdir -p .build/OpenMumble.app/Contents/Resources
 	@cp .build/release/OpenMumble .build/OpenMumble.app/Contents/MacOS/
 	@cp Resources/Info.plist .build/OpenMumble.app/Contents/
+	@cp Resources/OpenMumble.icns .build/OpenMumble.app/Contents/Resources/
 	@echo "Built .build/OpenMumble.app"
 
 run: build

@@ -1,6 +1,7 @@
 import SwiftUI
+import ApplicationServices
 
-/// Orchestrates the record → transcribe → cleanup → paste pipeline.
+/// Orchestrates the record → transcribe → cleanup → insert pipeline.
 @MainActor
 final class DictationEngine: ObservableObject {
     enum State: Equatable {
@@ -26,8 +27,11 @@ final class DictationEngine: ObservableObject {
     private let recorder = AudioRecorder()
     private var transcriber: Transcriber?
     private let hotkeyManager = HotkeyManager()
+    private var didRequestPermissions = false
 
     func start() {
+        requestPermissionsIfNeeded()
+
         hotkeyManager.onPress = { [weak self] in
             Task { @MainActor in self?.beginRecording() }
         }
@@ -126,5 +130,25 @@ final class DictationEngine: ObservableObject {
 
     private var resolvedHotkey: HotkeyManager.Hotkey {
         HotkeyManager.Hotkey(rawValue: hotkeyChoice) ?? .ctrl
+    }
+
+    private func requestPermissionsIfNeeded() {
+        guard !didRequestPermissions else { return }
+        didRequestPermissions = true
+
+        let axOptions = [
+            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+        ] as CFDictionary
+        let hasAXAccess = AXIsProcessTrustedWithOptions(axOptions)
+        if !hasAXAccess {
+            print("[openmumble] Accessibility access is required for direct text insertion.")
+        }
+
+        if #available(macOS 10.15, *) {
+            if !CGPreflightListenEventAccess() {
+                _ = CGRequestListenEventAccess()
+                print("[openmumble] Input Monitoring access may be required for global hotkeys.")
+            }
+        }
     }
 }
