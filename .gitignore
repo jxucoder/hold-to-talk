@@ -1,0 +1,21 @@
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# Swift
+.build/
+.swiftpm/
+Package.resolved
+*.o
+*.swp
+
+# macOS
+.DS_Store
+
+# App artifacts
+*.app/
+
+# Secrets
+.env
