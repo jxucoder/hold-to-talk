@@ -1,20 +1,21 @@
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.egg-info/
-dist/
-build/
-.eggs/
-*.egg
-.venv/
-venv/
-env/
-.env
-*.wav
-*.mp3
-*.flac
-models/
-*.bin
-*.pt
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# Swift
+.build/
+.swiftpm/
+Package.resolved
+*.o
+*.swp
+
+# macOS
 .DS_Store
+
+# App artifacts
+*.app/
+
+# Secrets
+.env
