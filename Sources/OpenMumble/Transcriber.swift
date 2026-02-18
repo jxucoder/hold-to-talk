@@ -1,3 +1,4 @@
+import Foundation
 import WhisperKit
 
 /// Local speech-to-text via WhisperKit (Core ML accelerated on Apple Silicon).
@@ -9,11 +10,10 @@ final class Transcriber {
         self.modelSize = modelSize
     }
 
-    /// Lazily loads the model on first call.
     func loadModel() async throws {
         guard whisper == nil else { return }
         print("[transcriber] Loading \(modelSize)…")
-        whisper = try await WhisperKit(model: modelSize)
+        whisper = try await WhisperKit(model: modelSize, downloadBase: ModelManager.modelBase)
         print("[transcriber] Ready.")
     }
 

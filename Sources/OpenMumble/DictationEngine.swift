@@ -1,6 +1,7 @@
 import SwiftUI
 import ApplicationServices
 import AppKit
+import Combine
 
 /// Orchestrates the record → transcribe → cleanup → insert pipeline.
 @MainActor
@@ -10,28 +11,64 @@ final class DictationEngine: ObservableObject {
         case recording
         case transcribing
         case cleaning
+
+        var label: String {
+            switch self {
+            case .idle:         "Ready"
+            case .recording:    "Recording…"
+            case .transcribing: "Transcribing…"
+            case .cleaning:     "Cleaning…"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .idle:         "mic"
+            case .recording:    "mic.fill"
+            case .transcribing: "bubble.left"
+            case .cleaning:     "sparkles"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .idle:         .green
+            case .recording:    .red
+            case .transcribing: .orange
+            case .cleaning:     .blue
+            }
+        }
     }
 
     @Published var state: State = .idle
+    private var hudBinding: AnyCancellable?
     @Published var lastRawText: String = ""
     @Published var lastCleanText: String = ""
+    @Published var lastInsertDebug: String = ""
+    @Published var hasAccessibility: Bool = AXIsProcessTrusted()
 
-    @AppStorage("whisperModel") var whisperModel = "large-v3"
+    @AppStorage("whisperModel") var whisperModel = "large-v3-turbo"
     @AppStorage("cleanupEnabled") var cleanupEnabled = true
-    @AppStorage("cleanupProvider") var cleanupProvider = "claude"
-    @AppStorage("claudeApiKey") var claudeApiKey = ""
-    @AppStorage("claudeModel") var claudeModel = "claude-sonnet-4-20250514"
-    @AppStorage("openaiApiKey") var openaiApiKey = ""
-    @AppStorage("openaiModel") var openaiModel = "gpt-4o-mini"
+    @AppStorage("cleanupPrompt") var cleanupPrompt = TextProcessor.defaultPrompt
     @AppStorage("hotkeyChoice") var hotkeyChoice = "ctrl"
 
     private let recorder = AudioRecorder()
     private var transcriber: Transcriber?
     private let hotkeyManager = HotkeyManager()
     private var didRequestPermissions = false
+    private var didStart = false
     private var recordingTargetAppPID: pid_t?
+    private var recordingTargetBundleID: String?
+
+    init() {
+        Task { @MainActor [weak self] in
+            self?.start()
+        }
+    }
 
     func start() {
+        guard !didStart else { return }
+        didStart = true
         requestPermissionsIfNeeded()
 
         hotkeyManager.onPress = { [weak self] in
@@ -43,11 +80,19 @@ final class DictationEngine: ObservableObject {
         hotkeyManager.update(hotkey: resolvedHotkey)
         hotkeyManager.start()
 
+        hudBinding = $state
+            .removeDuplicates()
+            .sink { RecordingHUD.shared.update($0) }
+
         // Pre-warm Whisper model
         Task.detached { [whisperModel] in
             let t = Transcriber(modelSize: whisperModel)
-            try? await t.loadModel()
-            await MainActor.run { self.transcriber = t }
+            do {
+                try await t.loadModel()
+                await MainActor.run { self.transcriber = t }
+            } catch {
+                print("[openmumble] Model pre-warm failed: \(error)")
+            }
         }
 
         print("[openmumble] Ready — hold [\(hotkeyChoice)] to dictate.")
@@ -61,20 +106,19 @@ final class DictationEngine: ObservableObject {
         hotkeyManager.update(hotkey: resolvedHotkey)
     }
 
-    /// The active API key for the selected provider, if any.
-    var activeApiKey: String {
-        switch TextProcessor.Provider(rawValue: cleanupProvider) {
-        case .claude:  return claudeApiKey
-        case .openai:  return openaiApiKey
-        case .none:    return ""
-        }
-    }
-
     // MARK: - Pipeline
 
     private func beginRecording() {
         guard state == .idle else { return }
+
+        hasAccessibility = AXIsProcessTrusted()
+        if !hasAccessibility {
+            print("[openmumble] ⚠ Accessibility not granted — text insertion will be blocked by macOS.")
+            print("[openmumble]   Go to System Settings → Privacy & Security → Accessibility and add OpenMumble.")
+        }
+
         recordingTargetAppPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        recordingTargetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         state = .recording
         try? recorder.start()
     }
@@ -105,15 +149,10 @@ final class DictationEngine: ObservableObject {
             lastRawText = raw
             print("[openmumble] Raw: \(raw)")
 
-            // Cleanup
             var final = raw
-            let provider = TextProcessor.Provider(rawValue: cleanupProvider) ?? .claude
-            let key = activeApiKey
-            if cleanupEnabled && !key.isEmpty {
+            if cleanupEnabled {
                 state = .cleaning
-                let model = provider == .claude ? claudeModel : openaiModel
-                let processor = TextProcessor(provider: provider, apiKey: key, model: model)
-                let cleaned = try await processor.cleanup(raw)
+                let cleaned = try await TextProcessor(prompt: cleanupPrompt).cleanup(raw)
                 if cleaned != raw {
                     print("[openmumble] Cleaned: \(cleaned)")
                     final = cleaned
@@ -123,11 +162,18 @@ final class DictationEngine: ObservableObject {
 
             // Insert
             reactivateRecordingTargetAppIfNeeded()
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            if TextInserter.insert(final) {
-                print("[openmumble] Inserted.")
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            let report = TextInserter.insert(
+                final + " ",
+                targetBundleID: recordingTargetBundleID,
+                targetPID: recordingTargetAppPID
+            )
+            if report.success {
+                lastInsertDebug = report.summary
+                print("[openmumble] Inserted via \(report.method ?? "unknown").")
             } else {
-                print("[openmumble] Insert failed. Check Accessibility and Input Monitoring permissions.")
+                lastInsertDebug = report.summary
+                print("[openmumble] Insert unconfirmed. \(report.attempts.joined(separator: " | "))")
             }
         } catch {
             print("[openmumble] Error: \(error)")
@@ -135,6 +181,7 @@ final class DictationEngine: ObservableObject {
 
         state = .idle
         recordingTargetAppPID = nil
+        recordingTargetBundleID = nil
     }
 
     private var resolvedHotkey: HotkeyManager.Hotkey {
@@ -149,15 +196,30 @@ final class DictationEngine: ObservableObject {
             kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
         ] as CFDictionary
         let hasAXAccess = AXIsProcessTrustedWithOptions(axOptions)
+        hasAccessibility = hasAXAccess
         if !hasAXAccess {
             print("[openmumble] Accessibility access is required for direct text insertion.")
+            print("[openmumble]   Go to System Settings → Privacy & Security → Accessibility and add OpenMumble.")
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                NSWorkspace.shared.open(url)
+            }
+            pollAccessibilityPermission()
         }
 
-        if #available(macOS 10.15, *) {
-            if !CGPreflightListenEventAccess() {
-                _ = CGRequestListenEventAccess()
-                print("[openmumble] Input Monitoring access may be required for global hotkeys.")
+        if !CGPreflightListenEventAccess() {
+            _ = CGRequestListenEventAccess()
+            print("[openmumble] Input Monitoring access may be required for global hotkeys.")
+        }
+    }
+
+    /// Polls until Accessibility is granted so the UI updates live.
+    private func pollAccessibilityPermission() {
+        Task { @MainActor in
+            while !AXIsProcessTrusted() {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
+            hasAccessibility = true
+            print("[openmumble] Accessibility permission granted.")
         }
     }
 
@@ -165,6 +227,6 @@ final class DictationEngine: ObservableObject {
         guard let pid = recordingTargetAppPID else { return }
         guard let app = NSRunningApplication(processIdentifier: pid) else { return }
         guard app.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
-        _ = app.activate(options: [])
+        _ = app.activate(options: [.activateAllWindows])
     }
 }

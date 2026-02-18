@@ -19,3 +19,8 @@ Package.resolved
 
 # Secrets
 .env
+
+# Local
+attic/
+.claude/
+

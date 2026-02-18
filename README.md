@@ -1,15 +1,31 @@
+<p align="center">
+  <img src="Resources/logo.png" width="128" alt="OpenMumble logo">
+</p>
+
 # OpenMumble
 
-Local-first voice dictation for macOS. Hold a key, speak, release — your words appear in the active window.
+Free, open-source voice dictation for macOS. Hold a key, speak, release — your words appear wherever your cursor is. Nothing ever leaves your Mac.
 
-- **WhisperKit** — local Whisper `large-v3` on Apple Silicon via Core ML. No cloud, sub-second latency.
-- **Claude or OpenAI** (optional) — cleans up filler words, grammar, self-corrections. Bring your own API key.
-- **Push-to-talk** — hold a modifier key, release to transcribe and paste.
-- **Menu bar app** — lives in your menu bar, no dock icon.
+- **Fully private** — powered by [WhisperKit](https://github.com/argmaxinc/WhisperKit), transcription runs entirely on Apple Silicon via Core ML. No cloud, no accounts, no network calls.
+- **Works everywhere** — dictate into any app: Slack, Notes, your IDE, email, browser — anywhere you can type.
+- **Apple Intelligence cleanup** (optional) — on-device grammar and filler-word removal. Customizable prompt. Requires macOS 26+.
+- **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
 
-## Build
+<p align="center">
+  <img src="Resources/screenshot.png" width="680" alt="OpenMumble screenshot">
+</p>
 
-Requires macOS 14+, Apple Silicon, Xcode 15+.
+## Install
+
+**Requirements:** macOS 14+, Apple Silicon, Xcode command line tools.
+
+### Download pre-built binary
+
+Grab the latest `.app` from [GitHub Releases](https://github.com/jxucoder/openmumble/releases), move it to `/Applications`, and open it. macOS will prompt for Microphone and Accessibility permissions on first launch.
+
+> Because the app is not notarized, you may need to right-click → Open on first launch, or allow it in System Settings → Privacy & Security.
+
+### Build from source
 
 ```bash
 git clone https://github.com/jxucoder/openmumble.git
@@ -33,13 +49,10 @@ Open via menu bar → Settings:
 
 | Setting | Default | Options |
 |---|---|---|
-| Whisper model | `large-v3` | `tiny.en`, `base.en`, `small.en`, `medium`, `large-v3` |
+| Whisper model | `large-v3-turbo` | `tiny.en`, `base.en`, `small.en`, `medium`, `large-v3`, `large-v3-turbo` |
 | Hotkey | `ctrl` | `ctrl`, `option`, `shift`, `fn`, `right_option` |
-| Cleanup provider | `claude` | `claude`, `openai` |
-| Claude model | `claude-sonnet-4-20250514` | Any Anthropic model ID |
-| OpenAI model | `gpt-4o-mini` | Any OpenAI model ID |
-
-Set an API key for your chosen provider in Settings to enable cleanup. Without one, raw Whisper output is used — the entire pipeline stays offline.
+| Cleanup | on | Toggle on/off — uses Apple Intelligence (macOS 26+) |
+| Cleanup prompt | (default) | Customizable instructions for how Apple Intelligence cleans up transcriptions |
 
 ## Architecture
 
@@ -48,13 +61,15 @@ OpenMumbleApp          SwiftUI menu bar app, entry point
 DictationEngine        Orchestrator: record → transcribe → cleanup → paste
 AudioRecorder          AVAudioEngine mic capture, resamples to 16 kHz mono
 Transcriber            WhisperKit wrapper, lazy model loading
-TextProcessor          Raw URLSession to Claude or OpenAI API
-TextInserter           NSPasteboard + CGEvent ⌘V simulation
+TextProcessor          On-device text cleanup via Apple Intelligence
+TextInserter           Multi-strategy text insertion (Accessibility API, keyboard events, clipboard)
 HotkeyManager          NSEvent global/local monitor for modifier keys
+ModelManager           Whisper model download and lifecycle management
+RecordingHUD           Floating overlay showing recording state
 SettingsView           SwiftUI settings form
 ```
 
-One external dependency: [WhisperKit](https://github.com/argmaxinc/WhisperKit). API calls use raw `URLSession` — no SDK.
+One external dependency: [WhisperKit](https://github.com/argmaxinc/WhisperKit). No network calls — everything runs locally.
 
 ## Permissions
 
@@ -62,6 +77,15 @@ macOS will prompt for:
 - **Microphone** — required for recording
 - **Accessibility** — required for global hotkey and paste simulation
 
+## Contributing
+
+Contributions are welcome! Please open an issue to discuss larger changes before submitting a PR.
+
+1. Fork the repo
+2. Create a feature branch (`git checkout -b my-feature`)
+3. Commit your changes
+4. Open a pull request
+
 ## License
 
-Apache 2.0
+[Apache 2.0](LICENSE)

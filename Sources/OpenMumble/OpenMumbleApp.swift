@@ -1,4 +1,5 @@
 import SwiftUI
+import ApplicationServices
 
 @main
 struct OpenMumbleApp: App {
@@ -8,23 +9,36 @@ struct OpenMumbleApp: App {
     var body: some Scene {
         MenuBarExtra {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Image(nsImage: NSApplication.shared.applicationIconImage)
-                        .resizable()
-                        .frame(width: 20, height: 20)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                    Text("OpenMumble")
-                        .font(.headline)
-                }
-                .padding(.bottom, 2)
+                Text("OpenMumble")
+                    .font(.headline)
+                    .padding(.bottom, 2)
 
                 label
+
+                if !engine.hasAccessibility {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                        Text("Accessibility not granted")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    Button("Grant Accessibility…") {
+                        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                        AXIsProcessTrustedWithOptions(options)
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .font(.caption)
+                }
                 Divider()
 
                 if !engine.lastCleanText.isEmpty {
-                    Text(engine.lastCleanText)
-                        .lineLimit(3)
-                        .font(.callout)
+                    Text(engine.lastCleanText.prefix(80) + (engine.lastCleanText.count > 80 ? "…" : ""))
+                        .lineLimit(2)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .padding(.vertical, 2)
                     Divider()
                 }
@@ -40,9 +54,8 @@ struct OpenMumbleApp: App {
             }
             .padding(8)
             .frame(width: 260)
-            .onAppear { engine.start() }
         } label: {
-            Label("OpenMumble", systemImage: icon)
+            Label("OpenMumble", systemImage: engine.state.icon)
         }
 
         Window("OpenMumble Settings", id: "settings") {
@@ -52,34 +65,26 @@ struct OpenMumbleApp: App {
     }
 
     private var label: some View {
-        HStack {
-            Circle()
-                .fill(stateColor)
-                .frame(width: 8, height: 8)
-            Text(stateText)
-                .font(.headline)
-        }
+        Label(
+            engine.state == .idle
+                ? "Ready — hold [\(engine.hotkeyChoice)]"
+                : engine.state.label,
+            systemImage: engine.state.icon
+        )
+        .font(.headline)
     }
 
-    private var stateText: String {
-        switch engine.state {
-        case .idle:         "Ready — hold [\(engine.hotkeyChoice)]"
-        case .recording:    "Recording…"
-        case .transcribing: "Transcribing…"
-        case .cleaning:     "Cleaning up…"
-        }
-    }
+    /// Loads the app icon from the .app bundle or from the source tree for debug runs.
+    static let appIcon: NSImage? = {
+        if let bundled = Bundle.main.image(forResource: "OpenMumble") { return bundled }
 
-    private var stateColor: Color {
-        switch engine.state {
-        case .idle:         .green
-        case .recording:    .red
-        case .transcribing: .orange
-        case .cleaning:     .blue
-        }
-    }
-
-    private var icon: String {
-        engine.state == .recording ? "mic.fill" : "mic"
-    }
+        let sourceFile = URL(fileURLWithPath: #filePath)
+        let projectRoot = sourceFile
+            .deletingLastPathComponent()  // Sources/OpenMumble/
+            .deletingLastPathComponent()  // Sources/
+            .deletingLastPathComponent()  // project root
+        let url = projectRoot.appendingPathComponent("Resources/OpenMumble.icns")
+        if let img = NSImage(contentsOf: url), img.isValid { return img }
+        return nil
+    }()
 }
