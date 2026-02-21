@@ -23,8 +23,6 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 
 Grab the latest `.app` from [GitHub Releases](https://github.com/jxucoder/openmumble/releases), move it to `/Applications`, and open it. macOS will prompt for Microphone and Accessibility permissions on first launch.
 
-> Because the app is not notarized, you may need to right-click → Open on first launch, or allow it in System Settings → Privacy & Security.
-
 ### Build from source
 
 ```bash
