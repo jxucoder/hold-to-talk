@@ -23,9 +23,8 @@ struct OpenMumbleApp: App {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
+                    // Fix #20: DictationEngine already prompts for AX; just open Settings directly
                     Button("Grant Accessibility…") {
-                        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                        AXIsProcessTrustedWithOptions(options)
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                             NSWorkspace.shared.open(url)
                         }

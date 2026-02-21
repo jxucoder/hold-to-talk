@@ -137,11 +137,12 @@ struct SettingsView: View {
     // MARK: - Model list
 
     private var sortedModels: [WhisperModelInfo] {
+        // Fix #16: stable sort — downloaded first, then alphabetical by id
         WhisperModelInfo.all.sorted { a, b in
             let aDown = modelManager.downloaded.contains(a.id)
             let bDown = modelManager.downloaded.contains(b.id)
             if aDown != bDown { return aDown }
-            return false
+            return a.id < b.id
         }
     }
 
@@ -203,7 +204,7 @@ struct SettingsView: View {
                     .controlSize(.small)
                 } else {
                     Button("Download") {
-                        Task { await modelManager.download(model.id) }
+                        modelManager.download(model.id)
                     }
                     .controlSize(.small)
                 }

@@ -335,15 +335,27 @@ enum TextInserter {
         }
 
         for ch in text {
-            guard let entry = keyMap[ch] else { return false }
-            guard let down = CGEvent(keyboardEventSource: source, virtualKey: entry.keyCode, keyDown: true),
-                  let up = CGEvent(keyboardEventSource: source, virtualKey: entry.keyCode, keyDown: false) else {
-                return false
+            if let entry = keyMap[ch] {
+                guard let down = CGEvent(keyboardEventSource: source, virtualKey: entry.keyCode, keyDown: true),
+                      let up = CGEvent(keyboardEventSource: source, virtualKey: entry.keyCode, keyDown: false) else {
+                    return false
+                }
+                down.flags = entry.flags
+                up.flags = entry.flags
+                postKeyEvent(down)
+                postKeyEvent(up)
+            } else {
+                // Fix #11: fall back to unicode injection for unmapped characters (non-ASCII, accented, etc.)
+                var utf16Units = Array(String(ch).utf16)
+                guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+                      let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+                    return false
+                }
+                down.keyboardSetUnicodeString(stringLength: utf16Units.count, unicodeString: &utf16Units)
+                up.keyboardSetUnicodeString(stringLength: utf16Units.count, unicodeString: &utf16Units)
+                postKeyEvent(down)
+                postKeyEvent(up)
             }
-            down.flags = entry.flags
-            up.flags = entry.flags
-            postKeyEvent(down)
-            postKeyEvent(up)
             if charDelayMicros > 0 { usleep(charDelayMicros) }
         }
         return true
@@ -407,9 +419,14 @@ enum TextInserter {
 
     private static func insertViaClipboardPaste(_ text: String) -> Bool {
         let pasteboard = NSPasteboard.general
-        let savedItems = pasteboard.pasteboardItems?.compactMap { item -> (NSPasteboard.PasteboardType, Data)? in
-            guard let type = item.types.first, let data = item.data(forType: type) else { return nil }
-            return (type, data)
+
+        // Fix #12: preserve ALL types from each item, not just the first
+        let savedItems: [SavedItem] = pasteboard.pasteboardItems?.map { item in
+            let pairs = item.types.compactMap { type -> (NSPasteboard.PasteboardType, Data)? in
+                guard let data = item.data(forType: type) else { return nil }
+                return (type, data)
+            }
+            return SavedItem(types: pairs)
         } ?? []
 
         pasteboard.clearContents()
@@ -432,14 +449,22 @@ enum TextInserter {
         return true
     }
 
-    private static func restoreClipboard(
-        _ pasteboard: NSPasteboard,
-        items: [(NSPasteboard.PasteboardType, Data)]
-    ) {
+    private struct SavedItem {
+        let types: [(NSPasteboard.PasteboardType, Data)]
+    }
+
+    private static func restoreClipboard(_ pasteboard: NSPasteboard, items: [SavedItem]) {
         pasteboard.clearContents()
-        for (type, data) in items {
-            pasteboard.setData(data, forType: type)
+        guard !items.isEmpty else { return }
+        // Fix #12: restore each item with all its original types
+        let pbItems = items.map { saved -> NSPasteboardItem in
+            let item = NSPasteboardItem()
+            for (type, data) in saved.types {
+                item.setData(data, forType: type)
+            }
+            return item
         }
+        pasteboard.writeObjects(pbItems)
     }
 
     private struct KeyEntry {

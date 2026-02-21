@@ -16,8 +16,10 @@ final class AudioRecorder {
 
         input.installTap(onBus: 0, bufferSize: 4096, format: nativeFormat) { [weak self] buffer, _ in
             guard let self else { return }
+            // Fix #8: use safe conditional cast — force-cast crashes if copy() returns unexpected type
+            guard let copied = buffer.copy() as? AVAudioPCMBuffer else { return }
             self.lock.lock()
-            self.buffers.append(buffer.copy() as! AVAudioPCMBuffer)
+            self.buffers.append(copied)
             self.lock.unlock()
         }
 

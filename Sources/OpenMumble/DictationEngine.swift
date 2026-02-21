@@ -59,6 +59,8 @@ final class DictationEngine: ObservableObject {
     private var didStart = false
     private var recordingTargetAppPID: pid_t?
     private var recordingTargetBundleID: String?
+    // Fix #14: keep a handle on the AX poll task so stop() can cancel it
+    private var axPollTask: Task<Void, Never>?
 
     init() {
         Task { @MainActor [weak self] in
@@ -84,8 +86,9 @@ final class DictationEngine: ObservableObject {
             .removeDuplicates()
             .sink { RecordingHUD.shared.update($0) }
 
-        // Pre-warm Whisper model
-        Task.detached { [whisperModel] in
+        // Fix #7: capture self weakly to prevent retain cycle in detached task
+        Task.detached { [weak self, whisperModel] in
+            guard let self else { return }
             let t = Transcriber(modelSize: whisperModel)
             do {
                 try await t.loadModel()
@@ -100,6 +103,9 @@ final class DictationEngine: ObservableObject {
 
     func stop() {
         hotkeyManager.stop()
+        // Fix #14: cancel accessibility poll when the engine stops
+        axPollTask?.cancel()
+        axPollTask = nil
     }
 
     func reloadHotkey() {
@@ -120,7 +126,17 @@ final class DictationEngine: ObservableObject {
         recordingTargetAppPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         recordingTargetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         state = .recording
-        try? recorder.start()
+
+        // Fix #9: report microphone errors to the user instead of swallowing them
+        do {
+            try recorder.start()
+        } catch {
+            print("[openmumble] ⚠ Microphone failed to start: \(error)")
+            state = .idle
+            recordingTargetAppPID = nil
+            recordingTargetBundleID = nil
+            return
+        }
     }
 
     private func endRecording() async {
@@ -128,6 +144,9 @@ final class DictationEngine: ObservableObject {
         let audio = recorder.stop()
         guard !audio.isEmpty else {
             state = .idle
+            // Fix #10: clear stale target info on early return
+            recordingTargetAppPID = nil
+            recordingTargetBundleID = nil
             return
         }
 
@@ -144,6 +163,9 @@ final class DictationEngine: ObservableObject {
             guard !raw.isEmpty else {
                 print("[openmumble] (no speech detected)")
                 state = .idle
+                // Fix #10: clear stale target info on early return
+                recordingTargetAppPID = nil
+                recordingTargetBundleID = nil
                 return
             }
             lastRawText = raw
@@ -160,7 +182,9 @@ final class DictationEngine: ObservableObject {
             }
             lastCleanText = final
 
-            // Insert
+            // Note: TextInserter.insert must run on the main thread — NSPasteboard, AX API,
+            // and CGEvent posting are all main-thread-only. The brief usleep in clipboard
+            // paste (~200ms) is acceptable compared to broken insertion.
             reactivateRecordingTargetAppIfNeeded()
             try? await Task.sleep(nanoseconds: 180_000_000)
             let report = TextInserter.insert(
@@ -213,10 +237,15 @@ final class DictationEngine: ObservableObject {
     }
 
     /// Polls until Accessibility is granted so the UI updates live.
+    /// Fix #14: stored so stop() can cancel it; uses try await (not try?) so it respects cancellation.
     private func pollAccessibilityPermission() {
-        Task { @MainActor in
-            while !AXIsProcessTrusted() {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+        axPollTask = Task { @MainActor in
+            do {
+                while !AXIsProcessTrusted() {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                }
+            } catch {
+                return  // Task was cancelled — exit cleanly
             }
             hasAccessibility = true
             print("[openmumble] Accessibility permission granted.")

@@ -8,16 +8,17 @@ struct WhisperModelInfo: Identifiable {
     let englishOnly: Bool
 
     static let all: [WhisperModelInfo] = [
-        .init(id: "tiny.en",          displayName: "Tiny (English)",       sizeLabel: "~75 MB",   englishOnly: true),
-        .init(id: "tiny",             displayName: "Tiny",                 sizeLabel: "~75 MB",   englishOnly: false),
-        .init(id: "base.en",          displayName: "Base (English)",       sizeLabel: "~140 MB",  englishOnly: true),
-        .init(id: "base",             displayName: "Base",                 sizeLabel: "~140 MB",  englishOnly: false),
-        .init(id: "small.en",         displayName: "Small (English)",      sizeLabel: "~460 MB",  englishOnly: true),
-        .init(id: "small",            displayName: "Small",                sizeLabel: "~460 MB",  englishOnly: false),
-        .init(id: "medium",           displayName: "Medium",               sizeLabel: "~1.5 GB",  englishOnly: false),
-        .init(id: "medium.en",        displayName: "Medium (English)",     sizeLabel: "~1.5 GB",  englishOnly: true),
-        .init(id: "large-v3_turbo",   displayName: "Large V3 Turbo",      sizeLabel: "~1.6 GB",  englishOnly: false),
-        .init(id: "large-v3",         displayName: "Large V3",            sizeLabel: "~3 GB",    englishOnly: false),
+        .init(id: "tiny.en",         displayName: "Tiny (English)",   sizeLabel: "~75 MB",   englishOnly: true),
+        .init(id: "tiny",            displayName: "Tiny",             sizeLabel: "~75 MB",   englishOnly: false),
+        .init(id: "base.en",         displayName: "Base (English)",   sizeLabel: "~140 MB",  englishOnly: true),
+        .init(id: "base",            displayName: "Base",             sizeLabel: "~140 MB",  englishOnly: false),
+        .init(id: "small.en",        displayName: "Small (English)",  sizeLabel: "~460 MB",  englishOnly: true),
+        .init(id: "small",           displayName: "Small",            sizeLabel: "~460 MB",  englishOnly: false),
+        .init(id: "medium",          displayName: "Medium",           sizeLabel: "~1.5 GB",  englishOnly: false),
+        .init(id: "medium.en",       displayName: "Medium (English)", sizeLabel: "~1.5 GB",  englishOnly: true),
+        // Fix #1: was "large-v3_turbo" (underscore) — mismatched the default "large-v3-turbo" in DictationEngine
+        .init(id: "large-v3-turbo",  displayName: "Large V3 Turbo",  sizeLabel: "~1.6 GB",  englishOnly: false),
+        .init(id: "large-v3",        displayName: "Large V3",        sizeLabel: "~3 GB",    englishOnly: false),
     ]
 }
 
@@ -27,6 +28,9 @@ final class ModelManager: ObservableObject {
     @Published var downloading: Set<String> = []
     @Published var downloaded: Set<String> = []
     @Published var downloadErrors: [String: String] = [:]
+
+    // Fix #3: track live download tasks so cancelDownload() actually stops them
+    private var downloadTasks: [String: Task<Void, Never>] = [:]
 
     static let modelBase: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -41,8 +45,8 @@ final class ModelManager: ObservableObject {
 
     func refreshDownloadStatus() {
         var found = Set<String>()
-        let repo = Self.modelBase
-            .appendingPathComponent("models/argmaxinc/whisperkit-coreml")
+        // Fix #2: modelBase is already .../OpenMumble/models — drop the extra "models/" prefix
+        let repo = Self.modelBase.appendingPathComponent("argmaxinc/whisperkit-coreml")
 
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: repo, includingPropertiesForKeys: nil
@@ -56,7 +60,6 @@ final class ModelManager: ObservableObject {
             let melSpec = dir.appendingPathComponent("MelSpectrogram.mlmodelc")
             guard FileManager.default.fileExists(atPath: melSpec.path) else { continue }
 
-            // Directory names are like "openai_whisper-base.en"
             if name.hasPrefix("openai_whisper-") {
                 let modelId = String(name.dropFirst("openai_whisper-".count))
                 found.insert(modelId)
@@ -65,46 +68,60 @@ final class ModelManager: ObservableObject {
         downloaded = found
     }
 
-    func download(_ modelId: String) async {
+    // Fix #3: non-async; spawns a tracked task internally so it can be cancelled
+    func download(_ modelId: String) {
         guard !downloading.contains(modelId) else { return }
         downloading.insert(modelId)
         downloadProgress[modelId] = 0
         downloadErrors.removeValue(forKey: modelId)
 
-        do {
-            _ = try await WhisperKit.download(
-                variant: modelId,
-                downloadBase: Self.modelBase
-            ) { [weak self] progress in
-                Task { @MainActor [weak self] in
-                    self?.downloadProgress[modelId] = progress.fractionCompleted
+        let task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                _ = try await WhisperKit.download(
+                    variant: modelId,
+                    downloadBase: Self.modelBase
+                ) { [weak self] progress in
+                    Task { @MainActor [weak self] in
+                        self?.downloadProgress[modelId] = progress.fractionCompleted
+                    }
+                }
+                if !Task.isCancelled {
+                    downloaded.insert(modelId)
+                }
+            } catch {
+                if !Task.isCancelled {
+                    downloadErrors[modelId] = error.localizedDescription
+                    print("[modelmanager] Download failed for \(modelId): \(error)")
                 }
             }
-            downloaded.insert(modelId)
-        } catch {
-            downloadErrors[modelId] = error.localizedDescription
-            print("[modelmanager] Download failed for \(modelId): \(error)")
+            downloading.remove(modelId)
+            downloadProgress.removeValue(forKey: modelId)
+            downloadTasks.removeValue(forKey: modelId)
         }
-
-        downloading.remove(modelId)
-        downloadProgress.removeValue(forKey: modelId)
+        downloadTasks[modelId] = task
     }
 
     func cancelDownload(_ modelId: String) {
+        // Fix #3: actually cancel the running Task, not just clear UI state
+        downloadTasks[modelId]?.cancel()
+        downloadTasks.removeValue(forKey: modelId)
         downloading.remove(modelId)
         downloadProgress.removeValue(forKey: modelId)
     }
 
     func delete(_ modelId: String) {
+        // Fix #2: correct path (was "models/argmaxinc/…")
         let folder = Self.modelBase
-            .appendingPathComponent("models/argmaxinc/whisperkit-coreml/openai_whisper-\(modelId)")
+            .appendingPathComponent("argmaxinc/whisperkit-coreml/openai_whisper-\(modelId)")
         try? FileManager.default.removeItem(at: folder)
         downloaded.remove(modelId)
     }
 
     func diskSize(for modelId: String) -> String? {
+        // Fix #2: correct path
         let folder = Self.modelBase
-            .appendingPathComponent("models/argmaxinc/whisperkit-coreml/openai_whisper-\(modelId)")
+            .appendingPathComponent("argmaxinc/whisperkit-coreml/openai_whisper-\(modelId)")
         guard FileManager.default.fileExists(atPath: folder.path) else { return nil }
         guard let bytes = directorySize(folder) else { return nil }
         return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
