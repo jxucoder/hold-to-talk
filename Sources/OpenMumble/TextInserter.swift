@@ -1,5 +1,4 @@
 import AppKit
-import Darwin
 
 /// Inserts text at the focused caret.
 enum TextInserter {
@@ -25,7 +24,7 @@ enum TextInserter {
         case accessibilitySelected = "ax.selectedText"
         case accessibilityValue = "ax.valueReplace"
         case syntheticTyping = "syntheticTyping"
-        case appleScriptTyping = "appleScriptTyping"
+        // appleScriptTyping removed: NSAppleScript is blocked by App Store sandbox
         case clipboardPaste = "clipboardPaste"
     }
 
@@ -53,7 +52,7 @@ enum TextInserter {
         attempts.append("app=\(bundleID)")
         attempts.append("profile=\(profile.name)")
         attempts.append("AX trusted: \(AXIsProcessTrusted() ? "yes" : "no")")
-        attempts.append("secureInput=\(secureInputStatus())")
+        attempts.append("secureInput=\(isSecureInputActive() ? "on" : "off")")
 
         for pass in 0..<max(1, profile.passes) {
             for strategy in profile.order {
@@ -96,8 +95,6 @@ enum TextInserter {
             return insertViaAccessibilityValueReplace(text, targetPID: targetPID) ? .success : .fail
         case .syntheticTyping:
             return insertViaSyntheticTyping(text, charDelayMicros: typingCharDelayMicros) ? .tentative : .fail
-        case .appleScriptTyping:
-            return insertViaAppleScriptTyping(text) ? .tentative : .fail
         case .clipboardPaste:
             return insertViaClipboardPaste(text) ? .tentative : .fail
         }
@@ -127,7 +124,7 @@ enum TextInserter {
         if bundleID.hasPrefix("com.google.Chrome") {
             return Profile(
                 name: "chrome-native",
-                order: [.unicodeChunked, .keycodeTyping, .syntheticTyping, .appleScriptTyping, .accessibilitySelected, .accessibilityValue, .clipboardPaste],
+                order: [.unicodeChunked, .keycodeTyping, .syntheticTyping, .accessibilitySelected, .accessibilityValue, .clipboardPaste],
                 passes: 2,
                 typingCharDelayMicros: 5_000
             )
@@ -135,7 +132,7 @@ enum TextInserter {
 
         return Profile(
             name: "accessibility-first",
-            order: [.accessibilitySelected, .accessibilityValue, .unicodeChunked, .keycodeTyping, .syntheticTyping, .appleScriptTyping, .clipboardPaste],
+            order: [.accessibilitySelected, .accessibilityValue, .unicodeChunked, .keycodeTyping, .syntheticTyping, .clipboardPaste],
             passes: 2,
             typingCharDelayMicros: 800
         )
@@ -401,22 +398,6 @@ enum TextInserter {
         return true
     }
 
-    private static func insertViaAppleScriptTyping(_ text: String) -> Bool {
-        // System Events keystroke path (still native typing, no clipboard usage).
-        let normalized = text.replacingOccurrences(of: "\n", with: " ")
-        let escaped = normalized
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let scriptSource = """
-        tell application "System Events"
-            keystroke "\(escaped)"
-        end tell
-        """
-        var error: NSDictionary?
-        let output = NSAppleScript(source: scriptSource)?.executeAndReturnError(&error)
-        return output != nil && error == nil
-    }
-
     private static func insertViaClipboardPaste(_ text: String) -> Bool {
         let pasteboard = NSPasteboard.general
 
@@ -472,17 +453,13 @@ enum TextInserter {
         let flags: CGEventFlags
     }
 
-    private typealias SecureInputFn = @convention(c) () -> Bool
-    private static let secureInputFunction: SecureInputFn? = {
-        let path = "/System/Library/Frameworks/Carbon.framework/Versions/Current/Frameworks/HIToolbox.framework/HIToolbox"
-        guard let handle = dlopen(path, RTLD_NOW) else { return nil }
-        guard let symbol = dlsym(handle, "IsSecureEventInputEnabled") else { return nil }
-        return unsafeBitCast(symbol, to: SecureInputFn.self)
-    }()
-
-    private static func secureInputStatus() -> String {
-        guard let fn = secureInputFunction else { return "unknown" }
-        return fn() ? "on" : "off"
+    /// Returns whether secure event input is active (e.g. password fields).
+    /// Uses CGEventSource instead of dlopen(Carbon) so it works inside the App Store sandbox.
+    private static func isSecureInputActive() -> Bool {
+        // CGEventSource.localEventsSuppressionInterval returns 0 when secure input
+        // is enabled by another process — a reliable proxy available without private APIs.
+        guard let src = CGEventSource(stateID: .combinedSessionState) else { return false }
+        return src.localEventsSuppressionInterval > 0
     }
 
     private static let keyMap: [Character: KeyEntry] = [
