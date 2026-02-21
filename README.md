@@ -84,6 +84,10 @@ Contributions are welcome! Please open an issue to discuss larger changes before
 3. Commit your changes
 4. Open a pull request
 
+## Privacy
+
+OpenMumble runs entirely on your Mac — no cloud, no accounts, no tracking. See the full [Privacy Policy](PRIVACY.md).
+
 ## License
 
 [Apache 2.0](LICENSE)
