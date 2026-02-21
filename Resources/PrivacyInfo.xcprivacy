@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Privacy Manifest — required for Mac App Store submissions since Spring 2024.
+    Declares data collected and any use of Apple's Required Reason APIs.
+    See: https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
+-->
+<plist version="1.0">
+<dict>
+    <!-- Data types collected -->
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array>
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeAudioData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <!-- Audio is processed locally for speech-to-text; never transmitted -->
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+    </array>
+
+    <!-- App does not track users across apps or websites -->
+    <key>NSPrivacyTracking</key>
+    <false/>
+
+    <!-- Required Reason APIs used by this app -->
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <!-- NSUserDefaults (AppStorage for settings) -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string> <!-- Read/write app settings -->
+            </array>
+        </dict>
+        <!-- File timestamp APIs (used by WhisperKit model management) -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>C617.1</string> <!-- Manage locally downloaded model files -->
+            </array>
+        </dict>
+        <!-- Disk space APIs (model size display) -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>85F4.1</string> <!-- Show available disk space before download -->
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

@@ -2,11 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Required for Mac App Store -->
     <key>com.apple.security.app-sandbox</key>
-    <false/>
+    <true/>
+
+    <!-- Microphone — user grants via System Settings > Privacy > Microphone -->
     <key>com.apple.security.device.audio-input</key>
     <true/>
-    <key>com.apple.security.automation.apple-events</key>
+
+    <!-- Network access — required for WhisperKit model downloads -->
+    <key>com.apple.security.network.client</key>
     <true/>
+
+    <!--
+    Accessibility (AX APIs for text insertion) and Input Monitoring (global hotkeys)
+    do not need special entitlements. macOS will prompt the user to grant both
+    via System Settings > Privacy & Security at runtime, same as direct distribution.
+    com.apple.security.automation.apple-events removed (NSAppleScript was removed).
+    -->
 </dict>
 </plist>
