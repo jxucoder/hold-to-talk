@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenMumble — Voice Dictation for macOS</title>
+  <meta name="description" content="Free, open-source voice dictation for macOS. Hold a key, speak, release — your words appear wherever your cursor is. Nothing ever leaves your Mac.">
+  <meta property="og:title" content="OpenMumble — Voice Dictation for macOS">
+  <meta property="og:description" content="Free, open-source voice dictation. Fully private, powered by WhisperKit on Apple Silicon.">
+  <meta property="og:image" content="screenshot.png">
+  <link rel="icon" href="logo.png" type="image/png">
+  <style>
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --text: #1d1d1f;
+      --text-secondary: #6e6e73;
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --border: #e5e5ea;
+      --radius: 16px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #000000;
+        --surface: #1c1c1e;
+        --text: #f5f5f7;
+        --text-secondary: #a1a1a6;
+        --accent: #2997ff;
+        --accent-hover: #40a9ff;
+        --border: #38383a;
+      }
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Nav */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: color-mix(in srgb, var(--bg) 80%, transparent);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 52px;
+    }
+
+    nav .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    nav .logo img { width: 28px; height: 28px; border-radius: 6px; }
+
+    nav .links {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+
+    nav .links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    nav .links a:hover { color: var(--text); }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 80px 0 48px;
+    }
+
+    .hero img.app-icon {
+      width: 96px;
+      height: 96px;
+      border-radius: 22px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+
+    .hero .subtitle {
+      font-size: 20px;
+      color: var(--text-secondary);
+      max-width: 560px;
+      margin: 0 auto 32px;
+    }
+
+    .hero .cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      padding: 14px 28px;
+      border-radius: 980px;
+      font-size: 16px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .hero .cta:hover { background: var(--accent-hover); }
+
+    .hero .cta svg { width: 18px; height: 18px; }
+
+    .hero .requirement {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* Screenshot */
+    .screenshot {
+      text-align: center;
+      padding: 32px 0 64px;
+    }
+
+    .screenshot img {
+      max-width: 100%;
+      width: 720px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .screenshot img {
+        box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+      }
+    }
+
+    /* Features */
+    .features {
+      padding: 64px 0;
+    }
+
+    .features h2 {
+      text-align: center;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 48px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+    }
+
+    .feature-card .icon {
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .feature-card p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* How it works */
+    .how-it-works {
+      padding: 64px 0;
+    }
+
+    .how-it-works h2 {
+      text-align: center;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 48px;
+    }
+
+    .steps {
+      display: flex;
+      gap: 32px;
+      justify-content: center;
+    }
+
+    .step {
+      text-align: center;
+      flex: 1;
+      max-width: 240px;
+    }
+
+    .step .number {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 20px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .step h3 {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .step p {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* Source */
+    .source {
+      padding: 64px 0;
+      text-align: center;
+    }
+
+    .source h2 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+    }
+
+    .source p {
+      font-size: 17px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .source code {
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 24px;
+      font-size: 14px;
+      font-family: "SF Mono", Menlo, monospace;
+      color: var(--text);
+      text-align: left;
+      line-height: 1.7;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 0;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    footer a {
+      color: var(--text-secondary);
+      text-decoration: none;
+    }
+
+    footer a:hover { color: var(--text); }
+
+    footer .links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 12px;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 32px; }
+      .hero .subtitle { font-size: 17px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .steps { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a href="/" class="logo">
+      <img src="logo.png" alt="OpenMumble">
+      OpenMumble
+    </a>
+    <div class="links">
+      <a href="https://github.com/jxucoder/openmumble">GitHub</a>
+      <a href="https://github.com/jxucoder/openmumble/releases/latest">Download</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="container">
+    <img src="logo.png" alt="OpenMumble" class="app-icon">
+    <h1>Voice dictation for macOS</h1>
+    <p class="subtitle">Hold a key, speak, release — your words appear wherever your cursor is. Fully private. Nothing ever leaves your Mac.</p>
+    <a href="https://github.com/jxucoder/openmumble/releases/latest" class="cta">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download for Mac
+    </a>
+    <p class="requirement">Requires macOS 14+, Apple Silicon</p>
+  </div>
+</section>
+
+<section class="screenshot">
+  <div class="container">
+    <img src="screenshot.png" alt="OpenMumble in action">
+  </div>
+</section>
+
+<section class="features">
+  <div class="container">
+    <h2>Why OpenMumble</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="icon">&#x1f512;</div>
+        <h3>Fully private</h3>
+        <p>Powered by WhisperKit, transcription runs entirely on Apple Silicon via Core ML. No cloud, no accounts, no network calls.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#x1f310;</div>
+        <h3>Works everywhere</h3>
+        <p>Dictate into any app — Slack, Notes, your IDE, email, browser. Anywhere you can type, OpenMumble can paste.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#x2728;</div>
+        <h3>Apple Intelligence cleanup</h3>
+        <p>Optional on-device grammar and filler-word removal. Customizable prompt. Requires macOS 26+.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#x1f4a8;</div>
+        <h3>Stays out of your way</h3>
+        <p>Lives in your menu bar. Hold a key to record, release to paste. No windows to manage, no workflow to learn.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="how-it-works">
+  <div class="container">
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="number">1</div>
+        <h3>Hold</h3>
+        <p>Press and hold your hotkey (Ctrl by default) to start recording</p>
+      </div>
+      <div class="step">
+        <div class="number">2</div>
+        <h3>Speak</h3>
+        <p>Say what you want to type — a floating indicator shows you're recording</p>
+      </div>
+      <div class="step">
+        <div class="number">3</div>
+        <h3>Release</h3>
+        <p>Let go and your words are transcribed and pasted into the active app</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="source">
+  <div class="container">
+    <h2>Open source</h2>
+    <p>Build from source in three commands.</p>
+    <code>
+      git clone https://github.com/jxucoder/openmumble.git<br>
+      cd openmumble<br>
+      make build && make run
+    </code>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="links">
+      <a href="https://github.com/jxucoder/openmumble">GitHub</a>
+      <a href="https://github.com/jxucoder/openmumble/releases/latest">Releases</a>
+      <a href="https://github.com/jxucoder/openmumble/blob/main/LICENSE">Apache 2.0</a>
+      <a href="https://github.com/jxucoder/openmumble/blob/main/PRIVACY.md">Privacy</a>
+    </div>
+    <p>OpenMumble is free and open-source software.</p>
+  </div>
+</footer>
+
+</body>
+</html>
