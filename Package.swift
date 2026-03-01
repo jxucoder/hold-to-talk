@@ -1,9 +1,9 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
     name: "OpenMumble",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     dependencies: [
         .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
     ],
@@ -11,7 +11,8 @@ let package = Package(
         .executableTarget(
             name: "OpenMumble",
             dependencies: ["WhisperKit"],
-            path: "Sources/OpenMumble"
+            path: "Sources/OpenMumble",
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
 )

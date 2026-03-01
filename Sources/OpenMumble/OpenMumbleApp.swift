@@ -1,10 +1,29 @@
 import SwiftUI
 import ApplicationServices
 
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        if DebugFlags.resetOnboarding {
+            UserDefaults.standard.set(false, forKey: "onboardingComplete")
+            print("[debug] Onboarding state reset.")
+        }
+        #endif
+    }
+}
+
 @main
 struct OpenMumbleApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var engine = DictationEngine()
     @Environment(\.openWindow) private var openWindow
+
+    private var shouldShowOnboarding: Bool {
+        #if DEBUG
+        if DebugFlags.forceOnboarding { return true }
+        #endif
+        return !engine.onboardingComplete
+    }
 
     var body: some Scene {
         MenuBarExtra {
@@ -52,12 +71,6 @@ struct OpenMumbleApp: App {
             }
             .padding(8)
             .frame(width: 260)
-            .onAppear {
-                if !engine.onboardingComplete {
-                    openWindow(id: "onboarding")
-                    NSApp.activate(ignoringOtherApps: true)
-                }
-            }
         } label: {
             Label("OpenMumble", systemImage: engine.state.icon)
         }
@@ -67,6 +80,7 @@ struct OpenMumbleApp: App {
         }
         .windowResizability(.contentSize)
         .windowStyle(.hiddenTitleBar)
+        .defaultLaunchBehavior(shouldShowOnboarding ? .presented : .suppressed)
 
         Window("OpenMumble Settings", id: "settings") {
             SettingsView(engine: engine)

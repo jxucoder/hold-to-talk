@@ -45,7 +45,12 @@ final class DictationEngine: ObservableObject {
     @Published var lastRawText: String = ""
     @Published var lastCleanText: String = ""
     @Published var lastInsertDebug: String = ""
-    @Published var hasAccessibility: Bool = AXIsProcessTrusted()
+    @Published var hasAccessibility: Bool = {
+        #if DEBUG
+        if DebugFlags.skipPermissions { return true }
+        #endif
+        return AXIsProcessTrusted()
+    }()
 
     @AppStorage("onboardingComplete") var onboardingComplete = false
     @AppStorage("whisperModel") var whisperModel = "large-v3-turbo"
@@ -80,10 +85,19 @@ final class DictationEngine: ObservableObject {
         guard !didStart else { return }
         didStart = true
 
+        #if DEBUG
+        if DebugFlags.skipPermissions {
+            hasAccessibility = true
+        } else {
+            hasAccessibility = AXIsProcessTrusted()
+            if !hasAccessibility { pollAccessibilityPermission() }
+        }
+        #else
         hasAccessibility = AXIsProcessTrusted()
         if !hasAccessibility {
             pollAccessibilityPermission()
         }
+        #endif
 
         hotkeyManager.onPress = { [weak self] in
             Task { @MainActor in self?.beginRecording() }
@@ -128,7 +142,13 @@ final class DictationEngine: ObservableObject {
     private func beginRecording() {
         guard state == .idle else { return }
 
+        #if DEBUG
+        if !DebugFlags.skipPermissions {
+            hasAccessibility = AXIsProcessTrusted()
+        }
+        #else
         hasAccessibility = AXIsProcessTrusted()
+        #endif
         if !hasAccessibility {
             print("[openmumble] ⚠ Accessibility not granted — text insertion will be blocked by macOS.")
             print("[openmumble]   Go to System Settings → Privacy & Security → Accessibility and add OpenMumble.")
@@ -226,6 +246,13 @@ final class DictationEngine: ObservableObject {
     private func requestPermissionsIfNeeded() {
         guard !didRequestPermissions else { return }
         didRequestPermissions = true
+
+        #if DEBUG
+        if DebugFlags.skipPermissions {
+            hasAccessibility = true
+            return
+        }
+        #endif
 
         let axOptions = [
             kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true

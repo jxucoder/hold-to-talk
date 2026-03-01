@@ -7,16 +7,27 @@ struct OnboardingView: View {
     @StateObject private var modelManager = ModelManager()
     @Environment(\.dismiss) private var dismiss
 
-    @State private var step = 0
+    @State private var step: Int
     @State private var hasMicrophone = false
     @State private var hasAccessibility = false
     @State private var hasInputMonitoring = false
     @State private var permissionTimer: Timer?
     @State private var downloadStarted = false
 
+    init(engine: DictationEngine) {
+        self.engine = engine
+        var initial = 0
+        #if DEBUG
+        if let override = DebugFlags.onboardingStep {
+            initial = max(0, min(override, 3))
+            print("[debug] Starting onboarding at step \(initial).")
+        }
+        #endif
+        _step = State(initialValue: initial)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Step indicator
             HStack(spacing: 8) {
                 ForEach(0..<4) { i in
                     Capsule()
@@ -373,6 +384,15 @@ struct OnboardingView: View {
     }
 
     private func refreshPermissions() {
+        #if DEBUG
+        if DebugFlags.skipPermissions {
+            hasMicrophone = true
+            hasAccessibility = true
+            hasInputMonitoring = true
+            engine.hasAccessibility = true
+            return
+        }
+        #endif
         hasMicrophone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         hasAccessibility = AXIsProcessTrusted()
         hasInputMonitoring = CGPreflightListenEventAccess()
