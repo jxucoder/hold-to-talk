@@ -12,6 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Stamp version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          plutil -replace CFBundleVersion -string "$VERSION" Resources/Info.plist
+          plutil -replace CFBundleShortVersionString -string "$VERSION" Resources/Info.plist
+
       - name: Import signing certificate
         env:
           CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12_BASE64 }}
@@ -76,3 +82,22 @@ jobs:
         with:
           files: .build/OpenMumble-${{ github.ref_name }}.zip
           generate_release_notes: true
+
+      - name: Update Homebrew tap
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA256=$(shasum -a 256 .build/OpenMumble-${GITHUB_REF_NAME}.zip | awk '{print $1}')
+
+          git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/jxucoder/homebrew-tap.git /tmp/homebrew-tap
+          mkdir -p /tmp/homebrew-tap/Casks
+
+          sed "s/TMPL_VERSION/$VERSION/g; s/TMPL_SHA256/$SHA256/g" Casks/openmumble.rb > /tmp/homebrew-tap/Casks/openmumble.rb
+
+          cd /tmp/homebrew-tap
+          git add .
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update openmumble to $VERSION" || true
+          git push
