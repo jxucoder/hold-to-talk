@@ -2,7 +2,8 @@ import Foundation
 import WhisperKit
 
 /// Local speech-to-text via WhisperKit (Core ML accelerated on Apple Silicon).
-final class Transcriber {
+/// Actor isolation eliminates data races on the mutable `whisper` property.
+actor Transcriber {
     private var whisper: WhisperKit?
     let modelSize: String
 

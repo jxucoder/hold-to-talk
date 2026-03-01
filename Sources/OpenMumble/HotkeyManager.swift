@@ -83,19 +83,17 @@ final class HotkeyManager {
             pressed = flagsMatch
         }
 
-        // Fix #6: read+write isDown under the lock atomically via a swap
-        let (wasDown, shouldNotify): (Bool, Bool?) = lock.withLock {
-            let was = _isDown
+        // Fix #6: read+write isDown under the lock atomically
+        let shouldNotify: Bool? = lock.withLock {
             if pressed && !_isDown {
                 _isDown = true
-                return (was, true)
+                return true
             } else if !pressed && _isDown {
                 _isDown = false
-                return (was, false)
+                return false
             }
-            return (was, nil)
+            return nil
         }
-        _ = wasDown
         switch shouldNotify {
         case true:  onPress?()
         case false: onRelease?()

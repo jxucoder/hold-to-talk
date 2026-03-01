@@ -51,12 +51,30 @@ struct OpenMumbleApp: App {
                 }
                 Divider()
 
+                if let error = engine.lastError {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .lineLimit(2)
+                    }
+                    .padding(.vertical, 2)
+                    Divider()
+                }
+
                 if !engine.lastCleanText.isEmpty {
                     Text(engine.lastCleanText.prefix(80) + (engine.lastCleanText.count > 80 ? "…" : ""))
                         .lineLimit(2)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 2)
+                    Button("Copy Last Transcription") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(engine.lastCleanText, forType: .string)
+                    }
+                    .font(.caption)
                     Divider()
                 }
 

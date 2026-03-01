@@ -11,7 +11,6 @@ struct OnboardingView: View {
     @State private var hasMicrophone = false
     @State private var hasAccessibility = false
     @State private var hasInputMonitoring = false
-    @State private var permissionTimer: Timer?
     @State private var downloadStarted = false
 
     init(engine: DictationEngine) {
@@ -77,7 +76,6 @@ struct OnboardingView: View {
 
             Button("Get Started") {
                 step = 1
-                startPermissionPolling()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -117,9 +115,7 @@ struct OnboardingView: View {
                 ) {
                     let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
                     _ = AXIsProcessTrustedWithOptions(opts)
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                        NSWorkspace.shared.open(url)
-                    }
+                    openSystemSettings("Privacy_Accessibility")
                 }
 
                 permissionRow(
@@ -129,12 +125,12 @@ struct OnboardingView: View {
                     granted: hasInputMonitoring
                 ) {
                     _ = CGRequestListenEventAccess()
+                    openSystemSettings("Privacy_ListenEvent")
                 }
             }
             .padding(.horizontal, 16)
 
             Button("Continue") {
-                stopPermissionPolling()
                 step = 2
             }
             .buttonStyle(.borderedProminent)
@@ -147,10 +143,34 @@ struct OnboardingView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            #if DEBUG
+            VStack(spacing: 6) {
+                Text("Dev builds can't detect Accessibility grants (unsigned binary).")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                Button("Skip Permissions (Debug)") {
+                    hasMicrophone = true
+                    hasAccessibility = true
+                    hasInputMonitoring = true
+                    engine.hasAccessibility = true
+                    step = 2
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.top, 4)
+            #endif
         }
         .padding(32)
-        .onAppear { startPermissionPolling() }
-        .onDisappear { stopPermissionPolling() }
+        .task {
+            // Structured concurrency replaces Timer — auto-cancels when view disappears
+            refreshPermissions()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                refreshPermissions()
+            }
+        }
     }
 
     private func permissionRow(
@@ -371,18 +391,6 @@ struct OnboardingView: View {
         WhisperModelInfo.all.first { $0.id == id }?.displayName ?? id
     }
 
-    private func startPermissionPolling() {
-        refreshPermissions()
-        permissionTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
-            Task { @MainActor in refreshPermissions() }
-        }
-    }
-
-    private func stopPermissionPolling() {
-        permissionTimer?.invalidate()
-        permissionTimer = nil
-    }
-
     private func refreshPermissions() {
         #if DEBUG
         if DebugFlags.skipPermissions {
@@ -397,5 +405,20 @@ struct OnboardingView: View {
         hasAccessibility = AXIsProcessTrusted()
         hasInputMonitoring = CGPreflightListenEventAccess()
         engine.hasAccessibility = hasAccessibility
+    }
+
+    private func openSystemSettings(_ anchor: String) {
+        let urls = [
+            "x-apple.systempreferences:com.apple.preference.security?\(anchor)",
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?\(anchor)",
+        ]
+        for str in urls {
+            if let url = URL(string: str), NSWorkspace.shared.open(url) {
+                return
+            }
+        }
+        if let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security") {
+            NSWorkspace.shared.open(fallback)
+        }
     }
 }
