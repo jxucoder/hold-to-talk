@@ -47,6 +47,7 @@ final class DictationEngine: ObservableObject {
     @Published var lastInsertDebug: String = ""
     @Published var hasAccessibility: Bool = AXIsProcessTrusted()
 
+    @AppStorage("onboardingComplete") var onboardingComplete = false
     @AppStorage("whisperModel") var whisperModel = "large-v3-turbo"
     @AppStorage("cleanupEnabled") var cleanupEnabled = true
     @AppStorage("cleanupPrompt") var cleanupPrompt = TextProcessor.defaultPrompt
@@ -64,14 +65,25 @@ final class DictationEngine: ObservableObject {
 
     init() {
         Task { @MainActor [weak self] in
-            self?.start()
+            guard let self, self.onboardingComplete else { return }
+            self.start()
         }
+    }
+
+    /// Called by OnboardingView when the user finishes the wizard.
+    func completeOnboarding() {
+        onboardingComplete = true
+        start()
     }
 
     func start() {
         guard !didStart else { return }
         didStart = true
-        requestPermissionsIfNeeded()
+
+        hasAccessibility = AXIsProcessTrusted()
+        if !hasAccessibility {
+            pollAccessibilityPermission()
+        }
 
         hotkeyManager.onPress = { [weak self] in
             Task { @MainActor in self?.beginRecording() }
@@ -86,7 +98,6 @@ final class DictationEngine: ObservableObject {
             .removeDuplicates()
             .sink { RecordingHUD.shared.update($0) }
 
-        // Fix #7: capture self weakly to prevent retain cycle in detached task
         Task.detached { [weak self, whisperModel] in
             guard let self else { return }
             let t = Transcriber(modelSize: whisperModel)

@@ -23,7 +23,6 @@ struct OpenMumbleApp: App {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
-                    // Fix #20: DictationEngine already prompts for AX; just open Settings directly
                     Button("Grant Accessibility…") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                             NSWorkspace.shared.open(url)
@@ -53,9 +52,21 @@ struct OpenMumbleApp: App {
             }
             .padding(8)
             .frame(width: 260)
+            .onAppear {
+                if !engine.onboardingComplete {
+                    openWindow(id: "onboarding")
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
         } label: {
             Label("OpenMumble", systemImage: engine.state.icon)
         }
+
+        Window("Welcome to OpenMumble", id: "onboarding") {
+            OnboardingView(engine: engine)
+        }
+        .windowResizability(.contentSize)
+        .windowStyle(.hiddenTitleBar)
 
         Window("OpenMumble Settings", id: "settings") {
             SettingsView(engine: engine)
