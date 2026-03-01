@@ -59,10 +59,12 @@ final class DictationEngine: ObservableObject {
     @AppStorage("cleanupEnabled") var cleanupEnabled = true
     @AppStorage("cleanupPrompt") var cleanupPrompt = TextProcessor.defaultPrompt
     @AppStorage("hotkeyChoice") var hotkeyChoice = "ctrl"
+    @AppStorage("hasPromptedInputMonitoring") private var hasPromptedInputMonitoring = false
 
     private let recorder = AudioRecorder()
     private var transcriber: Transcriber?
     private let hotkeyManager = HotkeyManager()
+    let modelManager = ModelManager()
     private var didStart = false
     private var recordingTargetAppPID: pid_t?
     private var recordingTargetBundleID: String?
@@ -100,11 +102,33 @@ final class DictationEngine: ObservableObject {
         }
         #endif
 
+        // Request Input Monitoring if not already granted and not yet prompted
+        // (onboarding may have already triggered the system dialog)
+        if !CGPreflightListenEventAccess() && !hasPromptedInputMonitoring {
+            debugLog("[openmumble] Requesting Input Monitoring access…")
+            _ = CGRequestListenEventAccess()
+            hasPromptedInputMonitoring = true
+        }
+
+        // Prompt for Accessibility if not trusted (shows system dialog)
+        if !AXIsProcessTrusted() {
+            let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(opts)
+        }
+
+        // Pre-warm the audio engine so start() is near-instant on first hotkey press
+        recorder.prepare()
+
+        debugLog("[openmumble] AX=\(AXIsProcessTrusted()), InputMon=\(CGPreflightListenEventAccess())")
+
+        // Use DispatchQueue.main.async instead of Task { @MainActor in } for lower-latency dispatch
         hotkeyManager.onPress = { [weak self] in
-            Task { @MainActor in self?.beginRecording() }
+            DispatchQueue.main.async { self?.beginRecording() }
         }
         hotkeyManager.onRelease = { [weak self] in
-            Task { @MainActor in await self?.endRecording() }
+            DispatchQueue.main.async {
+                Task { await self?.endRecording() }
+            }
         }
         hotkeyManager.update(hotkey: resolvedHotkey)
         hotkeyManager.start()
@@ -124,7 +148,7 @@ final class DictationEngine: ObservableObject {
             }
         }
 
-        print("[openmumble] Ready — hold [\(hotkeyChoice)] to dictate.")
+        debugLog("[openmumble] Ready — hold [\(hotkeyChoice)] to dictate.")
     }
 
     func stop() {
@@ -144,6 +168,7 @@ final class DictationEngine: ObservableObject {
     // MARK: - Pipeline
 
     private func beginRecording() {
+        debugLog("[openmumble] beginRecording called, state=\(state)")
         guard state == .idle else { return }
 
         #if DEBUG
@@ -154,19 +179,21 @@ final class DictationEngine: ObservableObject {
         hasAccessibility = AXIsProcessTrusted()
         #endif
         if !hasAccessibility {
-            print("[openmumble] ⚠ Accessibility not granted — text insertion will be blocked by macOS.")
-            print("[openmumble]   Go to System Settings → Privacy & Security → Accessibility and add OpenMumble.")
+            debugLog("[openmumble] ⚠ Accessibility not granted — text insertion will be blocked by macOS.")
         }
 
         recordingTargetAppPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         recordingTargetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        debugLog("[openmumble] Recording target: \(recordingTargetBundleID ?? "nil")")
         state = .recording
 
         // Fix #9: report microphone errors to the user instead of swallowing them
         do {
             try recorder.start()
+            debugLog("[openmumble] Microphone started")
         } catch {
-            print("[openmumble] ⚠ Microphone failed to start: \(error)")
+            debugLog("[openmumble] ⚠ Microphone failed to start: \(error)")
+            lastError = error.localizedDescription
             state = .idle
             recordingTargetAppPID = nil
             recordingTargetBundleID = nil
@@ -179,6 +206,7 @@ final class DictationEngine: ObservableObject {
         let audio = recorder.stop()
         guard !audio.isEmpty else {
             state = .idle
+            lastError = nil
             // Fix #10: clear stale target info on early return
             recordingTargetAppPID = nil
             recordingTargetBundleID = nil
@@ -186,7 +214,7 @@ final class DictationEngine: ObservableObject {
         }
 
         let duration = Double(audio.count) / 16000.0
-        print("[openmumble] Captured \(String(format: "%.1f", duration))s")
+        debugLog("[openmumble] Captured \(String(format: "%.1f", duration))s of audio")
 
         // Transcribe
         state = .transcribing
@@ -196,7 +224,7 @@ final class DictationEngine: ObservableObject {
             transcriber = Transcriber(modelSize: whisperModel)
         }
         guard let activeTranscriber = transcriber else {
-            print("[openmumble] ⚠ Transcriber not ready — skipping.")
+            debugLog("[openmumble] ⚠ Transcriber not ready — skipping.")
             lastError = "Transcriber not ready"
             state = .idle
             recordingTargetAppPID = nil
@@ -206,7 +234,7 @@ final class DictationEngine: ObservableObject {
         do {
             let raw = try await activeTranscriber.transcribe(audio)
             guard !raw.isEmpty else {
-                print("[openmumble] (no speech detected)")
+                debugLog("[openmumble] (no speech detected)")
                 state = .idle
                 // Fix #10: clear stale target info on early return
                 recordingTargetAppPID = nil
@@ -215,39 +243,38 @@ final class DictationEngine: ObservableObject {
             }
             lastError = nil  // clear any previous error on success
             lastRawText = raw
-            print("[openmumble] Raw: \(raw)")
+            debugLog("[openmumble] Raw: \(raw)")
 
-            var final = raw
+            var finalText = raw
             if cleanupEnabled {
                 state = .cleaning
                 let cleaned = try await TextProcessor(prompt: cleanupPrompt).cleanup(raw)
                 if cleaned != raw {
-                    print("[openmumble] Cleaned: \(cleaned)")
-                    final = cleaned
+                    debugLog("[openmumble] Cleaned: \(cleaned)")
+                    finalText = cleaned
                 }
             }
-            lastCleanText = final
+            lastCleanText = finalText
 
-            // Note: TextInserter.insert must run on the main thread — NSPasteboard, AX API,
-            // and CGEvent posting are all main-thread-only. The brief usleep in clipboard
-            // paste (~200ms) is acceptable compared to broken insertion.
+            // Reactivate the target app and give it a brief moment to focus.
+            // 80ms is sufficient for app activation; reduced from 180ms for snappier feel.
             reactivateRecordingTargetAppIfNeeded()
-            try? await Task.sleep(nanoseconds: 180_000_000)
+            try? await Task.sleep(nanoseconds: 80_000_000)
             let report = TextInserter.insert(
-                final + " ",
+                finalText + " ",
                 targetBundleID: recordingTargetBundleID,
                 targetPID: recordingTargetAppPID
             )
             if report.success {
                 lastInsertDebug = report.summary
-                print("[openmumble] Inserted via \(report.method ?? "unknown").")
+                debugLog("[openmumble] Inserted via \(report.method ?? "unknown").")
             } else {
                 lastInsertDebug = report.summary
-                print("[openmumble] Insert unconfirmed. \(report.attempts.joined(separator: " | "))")
+                debugLog("[openmumble] Insert unconfirmed. \(report.attempts.joined(separator: " | "))")
             }
         } catch {
             lastError = error.localizedDescription
-            print("[openmumble] Error: \(error)")
+            debugLog("[openmumble] Error: \(error)")
         }
 
         state = .idle
@@ -279,6 +306,6 @@ final class DictationEngine: ObservableObject {
         guard let pid = recordingTargetAppPID else { return }
         guard let app = NSRunningApplication(processIdentifier: pid) else { return }
         guard app.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
-        _ = app.activate(options: [.activateAllWindows])
+        app.activate()
     }
 }

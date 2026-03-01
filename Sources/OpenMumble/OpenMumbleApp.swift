@@ -3,9 +3,12 @@ import ApplicationServices
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        truncateDebugLogIfNeeded()
         #if DEBUG
         if DebugFlags.resetOnboarding {
             UserDefaults.standard.set(false, forKey: "onboardingComplete")
+            UserDefaults.standard.removeObject(forKey: "onboardingStep")
+            UserDefaults.standard.removeObject(forKey: "hasPromptedInputMonitoring")
             print("[debug] Onboarding state reset.")
         }
         #endif
@@ -94,14 +97,14 @@ struct OpenMumbleApp: App {
         }
 
         Window("Welcome to OpenMumble", id: "onboarding") {
-            OnboardingView(engine: engine)
+            OnboardingView(engine: engine, modelManager: engine.modelManager)
         }
         .windowResizability(.contentSize)
         .windowStyle(.hiddenTitleBar)
         .defaultLaunchBehavior(shouldShowOnboarding ? .presented : .suppressed)
 
         Window("OpenMumble Settings", id: "settings") {
-            SettingsView(engine: engine)
+            SettingsView(engine: engine, modelManager: engine.modelManager)
         }
         .windowResizability(.contentSize)
     }
