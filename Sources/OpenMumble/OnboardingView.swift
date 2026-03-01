@@ -4,25 +4,28 @@ import ApplicationServices
 
 struct OnboardingView: View {
     @ObservedObject var engine: DictationEngine
-    @StateObject private var modelManager = ModelManager()
+    @ObservedObject var modelManager: ModelManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var step: Int
+    @AppStorage("onboardingStep") private var step = 0
     @State private var hasMicrophone = false
     @State private var hasAccessibility = false
     @State private var hasInputMonitoring = false
     @State private var downloadStarted = false
+    @State private var hasShownAccessibilityPrompt = false
+    @State private var hasShownInputMonitoringPrompt = false
+    @StateObject private var hotkeyTester = HotkeyTester()
 
-    init(engine: DictationEngine) {
+    init(engine: DictationEngine, modelManager: ModelManager) {
         self.engine = engine
-        var initial = 0
+        self.modelManager = modelManager
         #if DEBUG
         if let override = DebugFlags.onboardingStep {
-            initial = max(0, min(override, 3))
-            print("[debug] Starting onboarding at step \(initial).")
+            let clamped = max(0, min(override, 3))
+            UserDefaults.standard.set(clamped, forKey: "onboardingStep")
+            print("[debug] Starting onboarding at step \(clamped).")
         }
         #endif
-        _step = State(initialValue: initial)
     }
 
     var body: some View {
@@ -113,9 +116,13 @@ struct OnboardingView: View {
                     subtitle: "Paste text into the active app",
                     granted: hasAccessibility
                 ) {
-                    let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                    _ = AXIsProcessTrustedWithOptions(opts)
-                    openSystemSettings("Privacy_Accessibility")
+                    if !hasShownAccessibilityPrompt {
+                        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                        _ = AXIsProcessTrustedWithOptions(opts)
+                        hasShownAccessibilityPrompt = true
+                    } else {
+                        openSystemSettings("Privacy_Accessibility")
+                    }
                 }
 
                 permissionRow(
@@ -124,8 +131,13 @@ struct OnboardingView: View {
                     subtitle: "Listen for your hotkey globally",
                     granted: hasInputMonitoring
                 ) {
-                    _ = CGRequestListenEventAccess()
-                    openSystemSettings("Privacy_ListenEvent")
+                    if !hasShownInputMonitoringPrompt {
+                        _ = CGRequestListenEventAccess()
+                        hasShownInputMonitoringPrompt = true
+                        UserDefaults.standard.set(true, forKey: "hasPromptedInputMonitoring")
+                    } else {
+                        openSystemSettings("Privacy_ListenEvent")
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -170,6 +182,9 @@ struct OnboardingView: View {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 refreshPermissions()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshPermissions()
         }
     }
 
@@ -301,6 +316,10 @@ struct OnboardingView: View {
 
     // MARK: - Step 4: Ready
 
+    private var resolvedHotkey: HotkeyManager.Hotkey {
+        HotkeyManager.Hotkey(rawValue: engine.hotkeyChoice) ?? .ctrl
+    }
+
     private var readyStep: some View {
         VStack(spacing: 20) {
             Text("You're All Set")
@@ -321,20 +340,40 @@ struct OnboardingView: View {
                     .frame(width: 340)
                     .onChange(of: engine.hotkeyChoice) {
                         engine.reloadHotkey()
+                        hotkeyTester.remove()
+                        hotkeyTester.install(for: resolvedHotkey)
                     }
                 }
 
-                // Usage instructions
-                HStack(spacing: 24) {
-                    stepBubble(number: "1", label: "Hold", detail: "[\(engine.hotkeyChoice)]")
-                    Image(systemName: "arrow.right")
-                        .foregroundStyle(.secondary)
-                    stepBubble(number: "2", label: "Speak", detail: "your words")
-                    Image(systemName: "arrow.right")
-                        .foregroundStyle(.secondary)
-                    stepBubble(number: "3", label: "Release", detail: "text appears")
+                // Interactive hotkey test area
+                VStack(spacing: 8) {
+                    switch hotkeyTester.phase {
+                    case .waiting:
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.secondary)
+                        Text("Press and hold [\(engine.hotkeyChoice)] to test")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    case .holding:
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.orange)
+                            .symbolEffect(.pulse)
+                        Text("Holding [\(engine.hotkeyChoice)]… release to finish")
+                            .font(.callout)
+                            .foregroundStyle(.orange)
+                    case .success:
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.green)
+                        Text("Hotkey works! You're ready to go.")
+                            .font(.callout)
+                            .foregroundStyle(.green)
+                    }
                 }
-                .padding(.top, 8)
+                .frame(height: 80)
+                .animation(.easeInOut(duration: 0.2), value: hotkeyTester.phase)
 
                 // Menu bar hint
                 HStack(spacing: 8) {
@@ -348,6 +387,7 @@ struct OnboardingView: View {
             }
 
             Button("Start Using OpenMumble") {
+                step = 0
                 engine.completeOnboarding()
                 dismiss()
             }
@@ -356,20 +396,11 @@ struct OnboardingView: View {
             .padding(.top, 8)
         }
         .padding(32)
-    }
-
-    private func stepBubble(number: String, label: String, detail: String) -> some View {
-        VStack(spacing: 4) {
-            Text(number)
-                .font(.caption2.bold())
-                .foregroundStyle(.white)
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(Color.accentColor))
-            Text(label)
-                .font(.headline)
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        .onAppear {
+            hotkeyTester.install(for: resolvedHotkey)
+        }
+        .onDisappear {
+            hotkeyTester.remove()
         }
     }
 
@@ -419,6 +450,68 @@ struct OnboardingView: View {
         }
         if let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security") {
             NSWorkspace.shared.open(fallback)
+        }
+    }
+}
+
+// MARK: - HotkeyTester
+
+@MainActor
+private final class HotkeyTester: ObservableObject {
+    enum Phase {
+        case waiting, holding, success
+    }
+
+    @Published var phase: Phase = .waiting
+
+    private var globalMonitor: Any?
+    private var localMonitor: Any?
+    private var hotkey: HotkeyManager.Hotkey = .ctrl
+
+    func install(for hotkey: HotkeyManager.Hotkey) {
+        remove()
+        self.hotkey = hotkey
+        phase = .waiting
+
+        let handler: (NSEvent) -> Void = { [weak self] event in
+            DispatchQueue.main.async {
+                self?.handle(event)
+            }
+        }
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: handler)
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            DispatchQueue.main.async {
+                self?.handle(event)
+            }
+            return event
+        }
+    }
+
+    func remove() {
+        if let m = globalMonitor { NSEvent.removeMonitor(m) }
+        if let m = localMonitor { NSEvent.removeMonitor(m) }
+        globalMonitor = nil
+        localMonitor = nil
+    }
+
+    deinit {
+        if let m = globalMonitor { NSEvent.removeMonitor(m) }
+        if let m = localMonitor { NSEvent.removeMonitor(m) }
+    }
+
+    private func handle(_ event: NSEvent) {
+        let flagsMatch = event.modifierFlags.contains(hotkey.flag)
+        let pressed: Bool
+        if let requiredCode = hotkey.keyCode {
+            pressed = flagsMatch && event.keyCode == requiredCode
+        } else {
+            pressed = flagsMatch
+        }
+
+        if pressed && phase == .waiting {
+            phase = .holding
+        } else if !pressed && phase == .holding {
+            phase = .success
         }
     }
 }
