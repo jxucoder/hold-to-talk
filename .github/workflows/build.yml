@@ -17,16 +17,16 @@ jobs:
 
       - name: Bundle app
         run: |
-          mkdir -p .build/OpenMumble.app/Contents/MacOS
-          mkdir -p .build/OpenMumble.app/Contents/Resources
-          cp .build/release/OpenMumble .build/OpenMumble.app/Contents/MacOS/
-          cp Resources/Info.plist .build/OpenMumble.app/Contents/
-          cp Resources/OpenMumble.icns .build/OpenMumble.app/Contents/Resources/
-          codesign -f -s - --entitlements Resources/OpenMumble.entitlements .build/OpenMumble.app
+          mkdir -p .build/PushieTalkie.app/Contents/MacOS
+          mkdir -p .build/PushieTalkie.app/Contents/Resources
+          cp .build/release/PushieTalkie .build/PushieTalkie.app/Contents/MacOS/
+          cp Resources/Info.plist .build/PushieTalkie.app/Contents/
+          cp Resources/PushieTalkie.icns .build/PushieTalkie.app/Contents/Resources/
+          codesign -f -s - --entitlements Resources/PushieTalkie.entitlements .build/PushieTalkie.app
 
       - name: Upload artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
-          name: OpenMumble.app
-          path: .build/OpenMumble.app
+          name: PushieTalkie.app
+          path: .build/PushieTalkie.app

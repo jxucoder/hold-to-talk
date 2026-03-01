@@ -68,7 +68,7 @@ struct OnboardingView: View {
             appIcon
                 .frame(width: 80, height: 80)
 
-            Text("Welcome to OpenMumble")
+            Text("Welcome to PushieTalkie")
                 .font(.title.bold())
 
             Text("Voice dictation that runs entirely on your Mac.\nHold a key, speak, release — your words appear wherever your cursor is.")
@@ -94,7 +94,7 @@ struct OnboardingView: View {
             Text("Permissions")
                 .font(.title2.bold())
 
-            Text("OpenMumble needs a few permissions to work.")
+            Text("PushieTalkie needs a few permissions to work.")
                 .font(.body)
                 .foregroundStyle(.secondary)
 
@@ -234,7 +234,7 @@ struct OnboardingView: View {
             Text("Download Model")
                 .font(.title2.bold())
 
-            Text("OpenMumble needs a speech recognition model.\nPick one to download — you can change this later in Settings.")
+            Text("PushieTalkie needs a speech recognition model.\nPick one to download — you can change this later in Settings.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -379,14 +379,14 @@ struct OnboardingView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.up")
                         .font(.caption.bold())
-                    Text("OpenMumble lives in your menu bar")
+                    Text("PushieTalkie lives in your menu bar")
                         .font(.callout)
                 }
                 .foregroundStyle(.secondary)
                 .padding(.top, 12)
             }
 
-            Button("Start Using OpenMumble") {
+            Button("Start Using PushieTalkie") {
                 step = 0
                 engine.completeOnboarding()
                 dismiss()
@@ -408,7 +408,7 @@ struct OnboardingView: View {
 
     @ViewBuilder
     private var appIcon: some View {
-        if let icon = OpenMumbleApp.appIcon {
+        if let icon = PushieTalkieApp.appIcon {
             Image(nsImage: icon)
                 .resizable()
         } else {

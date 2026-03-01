@@ -34,7 +34,7 @@ final class ModelManager: ObservableObject {
 
     static let modelBase: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = appSupport.appendingPathComponent("OpenMumble/models")
+        let dir = appSupport.appendingPathComponent("PushieTalkie/models")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()

@@ -2,7 +2,7 @@
 
 **Effective date:** February 21, 2026
 
-OpenMumble is a free, open-source voice dictation app for macOS. It is designed from the ground up to keep your data private. This policy explains what the app does — and does not do — with your information.
+PushieTalkie is a free, open-source voice dictation app for macOS. It is designed from the ground up to keep your data private. This policy explains what the app does — and does not do — with your information.
 
 ## Core principle
 
@@ -10,7 +10,7 @@ OpenMumble is a free, open-source voice dictation app for macOS. It is designed 
 
 ## Data we collect
 
-None. OpenMumble does not collect, store, transmit, or share any personal data.
+None. PushieTalkie does not collect, store, transmit, or share any personal data.
 
 ## Audio
 
@@ -21,16 +21,16 @@ None. OpenMumble does not collect, store, transmit, or share any personal data.
 
 ## Transcriptions
 
-- Transcribed text is inserted into the active application and is not retained by OpenMumble.
+- Transcribed text is inserted into the active application and is not retained by PushieTalkie.
 - If Apple Intelligence cleanup is enabled (macOS 26+), the transcription is processed on-device by the system's built-in language model before insertion. This processing is handled entirely by macOS and does not involve any network requests.
 
 ## Network access
 
-OpenMumble makes **no network calls** during normal operation. The only network activity occurs when you download a Whisper speech recognition model for the first time (or switch models). Models are fetched from [Hugging Face](https://huggingface.co/argmaxinc) and stored locally on your Mac. No personal data is transmitted during this download.
+PushieTalkie makes **no network calls** during normal operation. The only network activity occurs when you download a Whisper speech recognition model for the first time (or switch models). Models are fetched from [Hugging Face](https://huggingface.co/argmaxinc) and stored locally on your Mac. No personal data is transmitted during this download.
 
 ## Local storage
 
-OpenMumble stores the following on your Mac:
+PushieTalkie stores the following on your Mac:
 
 | Data | Location | Purpose |
 |---|---|---|
@@ -41,7 +41,7 @@ No logs, recordings, transcription history, or usage data are stored.
 
 ## macOS permissions
 
-OpenMumble requests two system permissions:
+PushieTalkie requests two system permissions:
 
 - **Microphone** — to capture audio for voice dictation.
 - **Accessibility** — to listen for the global hotkey and simulate keyboard input to paste transcriptions.
@@ -50,11 +50,11 @@ These permissions are managed by macOS and can be revoked at any time in System 
 
 ## Third-party services
 
-OpenMumble has no third-party analytics, crash reporting, advertising, or tracking SDKs. The sole external dependency is [WhisperKit](https://github.com/argmaxinc/WhisperKit), an open-source speech recognition library that runs entirely on-device.
+PushieTalkie has no third-party analytics, crash reporting, advertising, or tracking SDKs. The sole external dependency is [WhisperKit](https://github.com/argmaxinc/WhisperKit), an open-source speech recognition library that runs entirely on-device.
 
 ## Children's privacy
 
-OpenMumble does not collect any data from anyone, including children.
+PushieTalkie does not collect any data from anyone, including children.
 
 ## Changes to this policy
 
@@ -62,4 +62,4 @@ If this policy changes, the update will be posted in this repository with a revi
 
 ## Contact
 
-If you have questions about this privacy policy, please [open an issue](https://github.com/jxucoder/openmumble/issues) on GitHub.
+If you have questions about this privacy policy, please [open an issue](https://github.com/jxucoder/pushietalkie/issues) on GitHub.

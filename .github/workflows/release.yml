@@ -48,16 +48,16 @@ jobs:
         env:
           SIGNING_IDENTITY: ${{ secrets.DEVELOPER_ID_SIGNING_IDENTITY }}
         run: |
-          mkdir -p .build/OpenMumble.app/Contents/MacOS
-          mkdir -p .build/OpenMumble.app/Contents/Resources
-          cp .build/release/OpenMumble .build/OpenMumble.app/Contents/MacOS/
-          cp Resources/Info.plist .build/OpenMumble.app/Contents/
-          cp Resources/OpenMumble.icns .build/OpenMumble.app/Contents/Resources/
+          mkdir -p .build/PushieTalkie.app/Contents/MacOS
+          mkdir -p .build/PushieTalkie.app/Contents/Resources
+          cp .build/release/PushieTalkie .build/PushieTalkie.app/Contents/MacOS/
+          cp Resources/Info.plist .build/PushieTalkie.app/Contents/
+          cp Resources/PushieTalkie.icns .build/PushieTalkie.app/Contents/Resources/
           codesign --force --options runtime --timestamp \
             -s "$SIGNING_IDENTITY" \
-            --entitlements Resources/OpenMumble.entitlements \
-            .build/OpenMumble.app
-          codesign --verify --verbose .build/OpenMumble.app
+            --entitlements Resources/PushieTalkie.entitlements \
+            .build/PushieTalkie.app
+          codesign --verify --verbose .build/PushieTalkie.app
 
       - name: Notarize app
         timeout-minutes: 30
@@ -66,21 +66,21 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          cd .build && zip -r OpenMumble.zip OpenMumble.app && cd ..
-          xcrun notarytool submit .build/OpenMumble.zip \
+          cd .build && zip -r PushieTalkie.zip PushieTalkie.app && cd ..
+          xcrun notarytool submit .build/PushieTalkie.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --wait --timeout 20m
-          xcrun stapler staple .build/OpenMumble.app
+          xcrun stapler staple .build/PushieTalkie.app
 
       - name: Create release zip
-        run: cd .build && zip -r OpenMumble-${{ github.ref_name }}.zip OpenMumble.app
+        run: cd .build && zip -r PushieTalkie-${{ github.ref_name }}.zip PushieTalkie.app
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: .build/OpenMumble-${{ github.ref_name }}.zip
+          files: .build/PushieTalkie-${{ github.ref_name }}.zip
           generate_release_notes: true
 
       - name: Update Homebrew tap
@@ -88,16 +88,16 @@ jobs:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          SHA256=$(shasum -a 256 .build/OpenMumble-${GITHUB_REF_NAME}.zip | awk '{print $1}')
+          SHA256=$(shasum -a 256 .build/PushieTalkie-${GITHUB_REF_NAME}.zip | awk '{print $1}')
 
           git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/jxucoder/homebrew-tap.git /tmp/homebrew-tap
           mkdir -p /tmp/homebrew-tap/Casks
 
-          sed "s/TMPL_VERSION/$VERSION/g; s/TMPL_SHA256/$SHA256/g" Casks/openmumble.rb > /tmp/homebrew-tap/Casks/openmumble.rb
+          sed "s/TMPL_VERSION/$VERSION/g; s/TMPL_SHA256/$SHA256/g" Casks/pushietalkie.rb > /tmp/homebrew-tap/Casks/pushietalkie.rb
 
           cd /tmp/homebrew-tap
           git add .
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "Update openmumble to $VERSION" || true
+          git commit -m "Update pushietalkie to $VERSION" || true
           git push

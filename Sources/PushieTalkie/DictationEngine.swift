@@ -105,7 +105,7 @@ final class DictationEngine: ObservableObject {
         // Request Input Monitoring if not already granted and not yet prompted
         // (onboarding may have already triggered the system dialog)
         if !CGPreflightListenEventAccess() && !hasPromptedInputMonitoring {
-            debugLog("[openmumble] Requesting Input Monitoring access…")
+            debugLog("[pushietalkie] Requesting Input Monitoring access…")
             _ = CGRequestListenEventAccess()
             hasPromptedInputMonitoring = true
         }
@@ -119,7 +119,7 @@ final class DictationEngine: ObservableObject {
         // Pre-warm the audio engine so start() is near-instant on first hotkey press
         recorder.prepare()
 
-        debugLog("[openmumble] AX=\(AXIsProcessTrusted()), InputMon=\(CGPreflightListenEventAccess())")
+        debugLog("[pushietalkie] AX=\(AXIsProcessTrusted()), InputMon=\(CGPreflightListenEventAccess())")
 
         // Use DispatchQueue.main.async instead of Task { @MainActor in } for lower-latency dispatch
         hotkeyManager.onPress = { [weak self] in
@@ -144,11 +144,11 @@ final class DictationEngine: ObservableObject {
                 try await t.loadModel()
                 await MainActor.run { self.transcriber = t }
             } catch {
-                print("[openmumble] Model pre-warm failed: \(error)")
+                print("[pushietalkie] Model pre-warm failed: \(error)")
             }
         }
 
-        debugLog("[openmumble] Ready — hold [\(hotkeyChoice)] to dictate.")
+        debugLog("[pushietalkie] Ready — hold [\(hotkeyChoice)] to dictate.")
     }
 
     func stop() {
@@ -168,7 +168,7 @@ final class DictationEngine: ObservableObject {
     // MARK: - Pipeline
 
     private func beginRecording() {
-        debugLog("[openmumble] beginRecording called, state=\(state)")
+        debugLog("[pushietalkie] beginRecording called, state=\(state)")
         guard state == .idle else { return }
 
         #if DEBUG
@@ -179,20 +179,20 @@ final class DictationEngine: ObservableObject {
         hasAccessibility = AXIsProcessTrusted()
         #endif
         if !hasAccessibility {
-            debugLog("[openmumble] ⚠ Accessibility not granted — text insertion will be blocked by macOS.")
+            debugLog("[pushietalkie] ⚠ Accessibility not granted — text insertion will be blocked by macOS.")
         }
 
         recordingTargetAppPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         recordingTargetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        debugLog("[openmumble] Recording target: \(recordingTargetBundleID ?? "nil")")
+        debugLog("[pushietalkie] Recording target: \(recordingTargetBundleID ?? "nil")")
         state = .recording
 
         // Fix #9: report microphone errors to the user instead of swallowing them
         do {
             try recorder.start()
-            debugLog("[openmumble] Microphone started")
+            debugLog("[pushietalkie] Microphone started")
         } catch {
-            debugLog("[openmumble] ⚠ Microphone failed to start: \(error)")
+            debugLog("[pushietalkie] ⚠ Microphone failed to start: \(error)")
             lastError = error.localizedDescription
             state = .idle
             recordingTargetAppPID = nil
@@ -214,7 +214,7 @@ final class DictationEngine: ObservableObject {
         }
 
         let duration = Double(audio.count) / 16000.0
-        debugLog("[openmumble] Captured \(String(format: "%.1f", duration))s of audio")
+        debugLog("[pushietalkie] Captured \(String(format: "%.1f", duration))s of audio")
 
         // Transcribe
         state = .transcribing
@@ -224,7 +224,7 @@ final class DictationEngine: ObservableObject {
             transcriber = Transcriber(modelSize: whisperModel)
         }
         guard let activeTranscriber = transcriber else {
-            debugLog("[openmumble] ⚠ Transcriber not ready — skipping.")
+            debugLog("[pushietalkie] ⚠ Transcriber not ready — skipping.")
             lastError = "Transcriber not ready"
             state = .idle
             recordingTargetAppPID = nil
@@ -234,7 +234,7 @@ final class DictationEngine: ObservableObject {
         do {
             let raw = try await activeTranscriber.transcribe(audio)
             guard !raw.isEmpty else {
-                debugLog("[openmumble] (no speech detected)")
+                debugLog("[pushietalkie] (no speech detected)")
                 state = .idle
                 // Fix #10: clear stale target info on early return
                 recordingTargetAppPID = nil
@@ -243,14 +243,14 @@ final class DictationEngine: ObservableObject {
             }
             lastError = nil  // clear any previous error on success
             lastRawText = raw
-            debugLog("[openmumble] Raw: \(raw)")
+            debugLog("[pushietalkie] Raw: \(raw)")
 
             var finalText = raw
             if cleanupEnabled {
                 state = .cleaning
                 let cleaned = try await TextProcessor(prompt: cleanupPrompt).cleanup(raw)
                 if cleaned != raw {
-                    debugLog("[openmumble] Cleaned: \(cleaned)")
+                    debugLog("[pushietalkie] Cleaned: \(cleaned)")
                     finalText = cleaned
                 }
             }
@@ -267,14 +267,14 @@ final class DictationEngine: ObservableObject {
             )
             if report.success {
                 lastInsertDebug = report.summary
-                debugLog("[openmumble] Inserted via \(report.method ?? "unknown").")
+                debugLog("[pushietalkie] Inserted via \(report.method ?? "unknown").")
             } else {
                 lastInsertDebug = report.summary
-                debugLog("[openmumble] Insert unconfirmed. \(report.attempts.joined(separator: " | "))")
+                debugLog("[pushietalkie] Insert unconfirmed. \(report.attempts.joined(separator: " | "))")
             }
         } catch {
             lastError = error.localizedDescription
-            debugLog("[openmumble] Error: \(error)")
+            debugLog("[pushietalkie] Error: \(error)")
         }
 
         state = .idle
@@ -298,7 +298,7 @@ final class DictationEngine: ObservableObject {
                 return  // Task was cancelled — exit cleanly
             }
             hasAccessibility = true
-            print("[openmumble] Accessibility permission granted.")
+            print("[pushietalkie] Accessibility permission granted.")
         }
     }
 

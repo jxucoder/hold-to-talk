@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="Resources/logo.png" width="128" alt="OpenMumble logo">
+  <img src="Resources/logo.png" width="128" alt="PushieTalkie logo">
 </p>
 
-# OpenMumble
+# PushieTalkie
 
 Free, open-source voice dictation for macOS. Hold a key, speak, release — your words appear wherever your cursor is. Nothing ever leaves your Mac.
 
@@ -12,7 +12,7 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 - **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
 
 <p align="center">
-  <img src="Resources/screenshot.png" width="680" alt="OpenMumble screenshot">
+  <img src="Resources/screenshot.png" width="680" alt="PushieTalkie screenshot">
 </p>
 
 ## Install
@@ -21,13 +21,13 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 
 ### Download pre-built binary
 
-Grab the latest `.app` from [GitHub Releases](https://github.com/jxucoder/openmumble/releases), move it to `/Applications`, and open it. macOS will prompt for Microphone and Accessibility permissions on first launch.
+Grab the latest `.app` from [GitHub Releases](https://github.com/jxucoder/pushietalkie/releases), move it to `/Applications`, and open it. macOS will prompt for Microphone and Accessibility permissions on first launch.
 
 ### Build from source
 
 ```bash
-git clone https://github.com/jxucoder/openmumble.git
-cd openmumble
+git clone https://github.com/jxucoder/pushietalkie.git
+cd pushietalkie
 make build
 make run
 ```
@@ -55,7 +55,7 @@ Open via menu bar → Settings:
 ## Architecture
 
 ```
-OpenMumbleApp          SwiftUI menu bar app, entry point
+PushieTalkieApp          SwiftUI menu bar app, entry point
 DictationEngine        Orchestrator: record → transcribe → cleanup → paste
 AudioRecorder          AVAudioEngine mic capture, resamples to 16 kHz mono
 Transcriber            WhisperKit wrapper, lazy model loading
@@ -86,7 +86,7 @@ Contributions are welcome! Please open an issue to discuss larger changes before
 
 ## Privacy
 
-OpenMumble runs entirely on your Mac — no cloud, no accounts, no tracking. See the full [Privacy Policy](PRIVACY.md).
+PushieTalkie runs entirely on your Mac — no cloud, no accounts, no tracking. See the full [Privacy Policy](PRIVACY.md).
 
 ## License
 

@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-struct OpenMumbleApp: App {
+struct PushieTalkieApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var engine = DictationEngine()
     @Environment(\.openWindow) private var openWindow
@@ -31,7 +31,7 @@ struct OpenMumbleApp: App {
     var body: some Scene {
         MenuBarExtra {
             VStack(alignment: .leading, spacing: 4) {
-                Text("OpenMumble")
+                Text("PushieTalkie")
                     .font(.headline)
                     .padding(.bottom, 2)
 
@@ -93,17 +93,17 @@ struct OpenMumbleApp: App {
             .padding(8)
             .frame(width: 260)
         } label: {
-            Label("OpenMumble", systemImage: engine.state.icon)
+            Label("PushieTalkie", systemImage: engine.state.icon)
         }
 
-        Window("Welcome to OpenMumble", id: "onboarding") {
+        Window("Welcome to PushieTalkie", id: "onboarding") {
             OnboardingView(engine: engine, modelManager: engine.modelManager)
         }
         .windowResizability(.contentSize)
         .windowStyle(.hiddenTitleBar)
         .defaultLaunchBehavior(shouldShowOnboarding ? .presented : .suppressed)
 
-        Window("OpenMumble Settings", id: "settings") {
+        Window("PushieTalkie Settings", id: "settings") {
             SettingsView(engine: engine, modelManager: engine.modelManager)
         }
         .windowResizability(.contentSize)
@@ -121,14 +121,14 @@ struct OpenMumbleApp: App {
 
     /// Loads the app icon from the .app bundle or from the source tree for debug runs.
     static let appIcon: NSImage? = {
-        if let bundled = Bundle.main.image(forResource: "OpenMumble") { return bundled }
+        if let bundled = Bundle.main.image(forResource: "PushieTalkie") { return bundled }
 
         let sourceFile = URL(fileURLWithPath: #filePath)
         let projectRoot = sourceFile
-            .deletingLastPathComponent()  // Sources/OpenMumble/
+            .deletingLastPathComponent()  // Sources/PushieTalkie/
             .deletingLastPathComponent()  // Sources/
             .deletingLastPathComponent()  // project root
-        let url = projectRoot.appendingPathComponent("Resources/OpenMumble.icns")
+        let url = projectRoot.appendingPathComponent("Resources/PushieTalkie.icns")
         if let img = NSImage(contentsOf: url), img.isValid { return img }
         return nil
     }()

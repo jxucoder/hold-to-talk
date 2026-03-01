@@ -16,7 +16,7 @@ struct SettingsView: View {
                 Spacer()
                 VStack(spacing: 6) {
                     Group {
-                        if let icon = OpenMumbleApp.appIcon {
+                        if let icon = PushieTalkieApp.appIcon {
                             Image(nsImage: icon)
                                 .resizable()
                         } else {
@@ -26,14 +26,14 @@ struct SettingsView: View {
                         }
                     }
                     .frame(width: 64, height: 64)
-                    Text("OpenMumble")
+                    Text("PushieTalkie")
                         .font(.title2.bold())
                     Text("Free, open-source, and fully private — nothing leaves your Mac.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     HStack(spacing: 12) {
-                        Link(destination: URL(string: "https://github.com/jxucoder/openmumble")!) {
+                        Link(destination: URL(string: "https://github.com/jxucoder/pushietalkie")!) {
                             Image(systemName: "star")
                                 .font(.caption)
                         }

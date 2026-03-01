@@ -9,7 +9,7 @@ private let debugLogFormatter: ISO8601DateFormatter = {
 
 let debugLogPath: String = {
     let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-    let dir = appSupport.appendingPathComponent("OpenMumble")
+    let dir = appSupport.appendingPathComponent("PushieTalkie")
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     return dir.appendingPathComponent("debug.log").path
 }()

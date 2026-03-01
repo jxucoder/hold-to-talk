@@ -3,26 +3,26 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>OpenMumble</string>
+    <string>PushieTalkie</string>
     <key>CFBundleIdentifier</key>
-    <string>com.openmumble.app</string>
+    <string>com.pushietalkie.app</string>
     <key>CFBundleVersion</key>
     <string>0.1.0</string>
     <key>CFBundleShortVersionString</key>
     <string>0.1.0</string>
     <key>CFBundleExecutable</key>
-    <string>OpenMumble</string>
+    <string>PushieTalkie</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>
-    <string>OpenMumble.icns</string>
+    <string>PushieTalkie.icns</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>OpenMumble needs microphone access for voice dictation.</string>
+    <string>PushieTalkie needs microphone access for voice dictation.</string>
     <key>NSAccessibilityUsageDescription</key>
-    <string>OpenMumble needs accessibility access to listen for hotkeys and paste text.</string>
+    <string>PushieTalkie needs accessibility access to listen for hotkeys and paste text.</string>
 </dict>
 </plist>
