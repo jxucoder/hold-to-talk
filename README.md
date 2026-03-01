@@ -17,13 +17,21 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 
 ## Install
 
-**Requirements:** macOS 14+, Apple Silicon, Xcode command line tools.
+**Requirements:** macOS 15+, Apple Silicon.
 
 ### Download pre-built binary
 
 Grab the latest `.app` from [GitHub Releases](https://github.com/jxucoder/pushietalkie/releases), move it to `/Applications`, and open it. macOS will prompt for Microphone and Accessibility permissions on first launch.
 
+### Homebrew
+
+```bash
+brew install jxucoder/tap/pushietalkie
+```
+
 ### Build from source
+
+Requires Xcode command line tools.
 
 ```bash
 git clone https://github.com/jxucoder/pushietalkie.git
@@ -47,7 +55,8 @@ Open via menu bar → Settings:
 
 | Setting | Default | Options |
 |---|---|---|
-| Whisper model | `large-v3-turbo` | `tiny.en`, `base.en`, `small.en`, `medium`, `large-v3`, `large-v3-turbo` |
+| Launch at Login | off | Toggle on/off |
+| Whisper model | `large-v3-turbo` | `tiny.en`, `tiny`, `base.en`, `base`, `small.en`, `small`, `medium.en`, `medium`, `large-v3-turbo`, `large-v3` |
 | Hotkey | `ctrl` | `ctrl`, `option`, `shift`, `fn`, `right_option` |
 | Cleanup | on | Toggle on/off — uses Apple Intelligence (macOS 26+) |
 | Cleanup prompt | (default) | Customizable instructions for how Apple Intelligence cleans up transcriptions |
@@ -55,7 +64,7 @@ Open via menu bar → Settings:
 ## Architecture
 
 ```
-PushieTalkieApp          SwiftUI menu bar app, entry point
+PushieTalkieApp        SwiftUI menu bar app, entry point
 DictationEngine        Orchestrator: record → transcribe → cleanup → paste
 AudioRecorder          AVAudioEngine mic capture, resamples to 16 kHz mono
 Transcriber            WhisperKit wrapper, lazy model loading
@@ -64,6 +73,7 @@ TextInserter           Multi-strategy text insertion (Accessibility API, keyboar
 HotkeyManager          NSEvent global/local monitor for modifier keys
 ModelManager           Whisper model download and lifecycle management
 RecordingHUD           Floating overlay showing recording state
+OnboardingView         Guided setup flow for first launch
 SettingsView           SwiftUI settings form
 ```
 
