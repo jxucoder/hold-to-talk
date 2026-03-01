@@ -70,6 +70,7 @@ final class DictationEngine: ObservableObject {
     private var recordingTargetBundleID: String?
     // Fix #14: keep a handle on the AX poll task so stop() can cancel it
     private var axPollTask: Task<Void, Never>?
+    private var activationObserver: NSObjectProtocol?
 
     init() {
         Task { @MainActor [weak self] in
@@ -101,6 +102,21 @@ final class DictationEngine: ObservableObject {
             pollAccessibilityPermission()
         }
         #endif
+
+        // Immediately re-check accessibility when the user switches back to the app
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            let trusted = AXIsProcessTrusted()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if trusted != self.hasAccessibility {
+                    self.hasAccessibility = trusted
+                }
+            }
+        }
 
         // Request Input Monitoring if not already granted and not yet prompted
         // (onboarding may have already triggered the system dialog)
@@ -156,6 +172,10 @@ final class DictationEngine: ObservableObject {
         // Fix #14: cancel accessibility poll when the engine stops
         axPollTask?.cancel()
         axPollTask = nil
+        if let activationObserver {
+            NotificationCenter.default.removeObserver(activationObserver)
+        }
+        activationObserver = nil
         // Fix #3: cancel HUD subscription to prevent leaks on re-creation
         hudBinding?.cancel()
         hudBinding = nil

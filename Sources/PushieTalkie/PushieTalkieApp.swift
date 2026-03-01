@@ -46,9 +46,7 @@ struct PushieTalkieApp: App {
                             .foregroundStyle(.red)
                     }
                     Button("Grant Accessibility…") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                            NSWorkspace.shared.open(url)
-                        }
+                        openSystemSettings("Privacy_Accessibility")
                     }
                     .font(.caption)
                 }

@@ -438,20 +438,7 @@ struct OnboardingView: View {
         engine.hasAccessibility = hasAccessibility
     }
 
-    private func openSystemSettings(_ anchor: String) {
-        let urls = [
-            "x-apple.systempreferences:com.apple.preference.security?\(anchor)",
-            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?\(anchor)",
-        ]
-        for str in urls {
-            if let url = URL(string: str), NSWorkspace.shared.open(url) {
-                return
-            }
-        }
-        if let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security") {
-            NSWorkspace.shared.open(fallback)
-        }
-    }
+    // openSystemSettings is now a shared top-level function in SystemSettingsHelper.swift
 }
 
 // MARK: - HotkeyTester
