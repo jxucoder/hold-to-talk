@@ -45,6 +45,8 @@ final class DictationEngine: ObservableObject {
     @Published var lastRawText: String = ""
     @Published var lastCleanText: String = ""
     @Published var lastInsertDebug: String = ""
+    /// Brief user-visible error message; cleared on next successful dictation.
+    @Published var lastError: String?
     @Published var hasAccessibility: Bool = {
         #if DEBUG
         if DebugFlags.skipPermissions { return true }
@@ -61,7 +63,6 @@ final class DictationEngine: ObservableObject {
     private let recorder = AudioRecorder()
     private var transcriber: Transcriber?
     private let hotkeyManager = HotkeyManager()
-    private var didRequestPermissions = false
     private var didStart = false
     private var recordingTargetAppPID: pid_t?
     private var recordingTargetBundleID: String?
@@ -131,6 +132,9 @@ final class DictationEngine: ObservableObject {
         // Fix #14: cancel accessibility poll when the engine stops
         axPollTask?.cancel()
         axPollTask = nil
+        // Fix #3: cancel HUD subscription to prevent leaks on re-creation
+        hudBinding?.cancel()
+        hudBinding = nil
     }
 
     func reloadHotkey() {
@@ -186,11 +190,21 @@ final class DictationEngine: ObservableObject {
 
         // Transcribe
         state = .transcribing
-        if transcriber == nil || transcriber?.modelSize != whisperModel {
+        // Rebuild transcriber if model changed
+        let currentModelSize = transcriber?.modelSize
+        if currentModelSize != whisperModel {
             transcriber = Transcriber(modelSize: whisperModel)
         }
+        guard let activeTranscriber = transcriber else {
+            print("[openmumble] ⚠ Transcriber not ready — skipping.")
+            lastError = "Transcriber not ready"
+            state = .idle
+            recordingTargetAppPID = nil
+            recordingTargetBundleID = nil
+            return
+        }
         do {
-            let raw = try await transcriber!.transcribe(audio)
+            let raw = try await activeTranscriber.transcribe(audio)
             guard !raw.isEmpty else {
                 print("[openmumble] (no speech detected)")
                 state = .idle
@@ -199,6 +213,7 @@ final class DictationEngine: ObservableObject {
                 recordingTargetBundleID = nil
                 return
             }
+            lastError = nil  // clear any previous error on success
             lastRawText = raw
             print("[openmumble] Raw: \(raw)")
 
@@ -231,6 +246,7 @@ final class DictationEngine: ObservableObject {
                 print("[openmumble] Insert unconfirmed. \(report.attempts.joined(separator: " | "))")
             }
         } catch {
+            lastError = error.localizedDescription
             print("[openmumble] Error: \(error)")
         }
 
@@ -241,37 +257,6 @@ final class DictationEngine: ObservableObject {
 
     private var resolvedHotkey: HotkeyManager.Hotkey {
         HotkeyManager.Hotkey(rawValue: hotkeyChoice) ?? .ctrl
-    }
-
-    private func requestPermissionsIfNeeded() {
-        guard !didRequestPermissions else { return }
-        didRequestPermissions = true
-
-        #if DEBUG
-        if DebugFlags.skipPermissions {
-            hasAccessibility = true
-            return
-        }
-        #endif
-
-        let axOptions = [
-            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
-        ] as CFDictionary
-        let hasAXAccess = AXIsProcessTrustedWithOptions(axOptions)
-        hasAccessibility = hasAXAccess
-        if !hasAXAccess {
-            print("[openmumble] Accessibility access is required for direct text insertion.")
-            print("[openmumble]   Go to System Settings → Privacy & Security → Accessibility and add OpenMumble.")
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                NSWorkspace.shared.open(url)
-            }
-            pollAccessibilityPermission()
-        }
-
-        if !CGPreflightListenEventAccess() {
-            _ = CGRequestListenEventAccess()
-            print("[openmumble] Input Monitoring access may be required for global hotkeys.")
-        }
     }
 
     /// Polls until Accessibility is granted so the UI updates live.

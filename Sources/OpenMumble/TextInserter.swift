@@ -456,10 +456,11 @@ enum TextInserter {
     /// Returns whether secure event input is active (e.g. password fields).
     /// Uses CGEventSource instead of dlopen(Carbon) so it works inside the App Store sandbox.
     private static func isSecureInputActive() -> Bool {
-        // CGEventSource.localEventsSuppressionInterval returns 0 when secure input
-        // is enabled by another process — a reliable proxy available without private APIs.
-        guard let src = CGEventSource(stateID: .combinedSessionState) else { return false }
-        return src.localEventsSuppressionInterval > 0
+        // When secure input is enabled by another process, CGEventSource creation
+        // for .combinedSessionState fails (returns nil) — use that as the signal.
+        // Additionally, a suppression interval of 0 indicates secure input is active.
+        guard let src = CGEventSource(stateID: .combinedSessionState) else { return true }
+        return src.localEventsSuppressionInterval == 0
     }
 
     private static let keyMap: [Character: KeyEntry] = [

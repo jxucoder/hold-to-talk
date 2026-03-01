@@ -1,7 +1,8 @@
 import AVFoundation
 
 /// Captures microphone audio into a 16 kHz mono float buffer for Whisper.
-final class AudioRecorder {
+/// Thread-safe via NSLock; marked Sendable for cross-actor usage.
+final class AudioRecorder: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private var buffers: [AVAudioPCMBuffer] = []
     private let lock = NSLock()
