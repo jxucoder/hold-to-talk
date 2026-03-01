@@ -107,8 +107,11 @@ final class RecordingHUD {
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
             panel.animator().setFrameOrigin(NSPoint(x: origin.x, y: origin.y - 8))
-        }, completionHandler: { [weak panel] in
+        }, completionHandler: { [weak self, weak panel] in
             panel?.orderOut(nil)
+            MainActor.assumeIsolated {
+                self?.panel = nil
+            }
         })
     }
 }

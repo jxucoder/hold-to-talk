@@ -62,6 +62,7 @@ final class HotkeyManager {
             self?.handle(event)
             return event
         }
+        debugLog("[hotkey] Started for \(hotkey.rawValue), global=\(globalMonitor != nil)")
     }
 
     func stop() {
@@ -69,6 +70,7 @@ final class HotkeyManager {
         if let m = localMonitor  { NSEvent.removeMonitor(m) }
         globalMonitor = nil
         localMonitor = nil
+        lock.withLock { _isDown = false }
     }
 
     private func handle(_ event: NSEvent) {

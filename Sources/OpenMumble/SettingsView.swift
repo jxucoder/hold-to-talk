@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var engine: DictationEngine
-    @StateObject private var modelManager = ModelManager()
+    @ObservedObject var modelManager: ModelManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var showManageModels = false
