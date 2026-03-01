@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 
 struct SettingsView: View {
     @ObservedObject var engine: DictationEngine
@@ -7,6 +8,7 @@ struct SettingsView: View {
 
     @State private var showManageModels = false
     @State private var showCleanupPrompt = false
+    @State private var launchAtLogin: Bool = (SMAppService.mainApp.status == .enabled)
 
     private let hotkeys = HotkeyManager.Hotkey.allCases
 
@@ -48,6 +50,22 @@ struct SettingsView: View {
             }
             .padding(.vertical, 8)
             .listRowBackground(Color.clear)
+
+            Section("General") {
+                Toggle("Launch at Login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, enabled in
+                        do {
+                            if enabled {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                        } catch {
+                            // Revert toggle on failure
+                            launchAtLogin = !enabled
+                        }
+                    }
+            }
 
             Section("Whisper Model") {
                 Picker("Active model", selection: $engine.whisperModel) {
