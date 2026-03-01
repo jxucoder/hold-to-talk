@@ -45,8 +45,8 @@ final class ModelManager: ObservableObject {
 
     func refreshDownloadStatus() {
         var found = Set<String>()
-        // Fix #2: modelBase is already .../OpenMumble/models — drop the extra "models/" prefix
-        let repo = Self.modelBase.appendingPathComponent("argmaxinc/whisperkit-coreml")
+        // WhisperKit.download() creates a "models/" subdirectory inside downloadBase
+        let repo = Self.modelBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml")
 
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: repo, includingPropertiesForKeys: nil
@@ -111,17 +111,15 @@ final class ModelManager: ObservableObject {
     }
 
     func delete(_ modelId: String) {
-        // Fix #2: correct path (was "models/argmaxinc/…")
         let folder = Self.modelBase
-            .appendingPathComponent("argmaxinc/whisperkit-coreml/openai_whisper-\(modelId)")
+            .appendingPathComponent("models/argmaxinc/whisperkit-coreml/openai_whisper-\(modelId)")
         try? FileManager.default.removeItem(at: folder)
         downloaded.remove(modelId)
     }
 
     func diskSize(for modelId: String) -> String? {
-        // Fix #2: correct path
         let folder = Self.modelBase
-            .appendingPathComponent("argmaxinc/whisperkit-coreml/openai_whisper-\(modelId)")
+            .appendingPathComponent("models/argmaxinc/whisperkit-coreml/openai_whisper-\(modelId)")
         guard FileManager.default.fileExists(atPath: folder.path) else { return nil }
         guard let bytes = directorySize(folder) else { return nil }
         return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
