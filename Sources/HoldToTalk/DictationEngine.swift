@@ -121,7 +121,7 @@ final class DictationEngine: ObservableObject {
         // Request Input Monitoring if not already granted and not yet prompted
         // (onboarding may have already triggered the system dialog)
         if !CGPreflightListenEventAccess() && !hasPromptedInputMonitoring {
-            debugLog("[pushietalkie] Requesting Input Monitoring access…")
+            debugLog("[holdtotalk] Requesting Input Monitoring access…")
             _ = CGRequestListenEventAccess()
             hasPromptedInputMonitoring = true
         }
@@ -135,7 +135,7 @@ final class DictationEngine: ObservableObject {
         // Pre-warm the audio engine so start() is near-instant on first hotkey press
         recorder.prepare()
 
-        debugLog("[pushietalkie] AX=\(AXIsProcessTrusted()), InputMon=\(CGPreflightListenEventAccess())")
+        debugLog("[holdtotalk] AX=\(AXIsProcessTrusted()), InputMon=\(CGPreflightListenEventAccess())")
 
         // Use DispatchQueue.main.async instead of Task { @MainActor in } for lower-latency dispatch
         hotkeyManager.onPress = { [weak self] in
@@ -160,11 +160,11 @@ final class DictationEngine: ObservableObject {
                 try await t.loadModel()
                 await MainActor.run { self.transcriber = t }
             } catch {
-                print("[pushietalkie] Model pre-warm failed: \(error)")
+                print("[holdtotalk] Model pre-warm failed: \(error)")
             }
         }
 
-        debugLog("[pushietalkie] Ready — hold [\(hotkeyChoice)] to dictate.")
+        debugLog("[holdtotalk] Ready — hold [\(hotkeyChoice)] to dictate.")
     }
 
     func stop() {
@@ -188,7 +188,7 @@ final class DictationEngine: ObservableObject {
     // MARK: - Pipeline
 
     private func beginRecording() {
-        debugLog("[pushietalkie] beginRecording called, state=\(state)")
+        debugLog("[holdtotalk] beginRecording called, state=\(state)")
         guard state == .idle else { return }
 
         #if DEBUG
@@ -199,20 +199,20 @@ final class DictationEngine: ObservableObject {
         hasAccessibility = AXIsProcessTrusted()
         #endif
         if !hasAccessibility {
-            debugLog("[pushietalkie] ⚠ Accessibility not granted — text insertion will be blocked by macOS.")
+            debugLog("[holdtotalk] ⚠ Accessibility not granted — text insertion will be blocked by macOS.")
         }
 
         recordingTargetAppPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         recordingTargetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        debugLog("[pushietalkie] Recording target: \(recordingTargetBundleID ?? "nil")")
+        debugLog("[holdtotalk] Recording target: \(recordingTargetBundleID ?? "nil")")
         state = .recording
 
         // Fix #9: report microphone errors to the user instead of swallowing them
         do {
             try recorder.start()
-            debugLog("[pushietalkie] Microphone started")
+            debugLog("[holdtotalk] Microphone started")
         } catch {
-            debugLog("[pushietalkie] ⚠ Microphone failed to start: \(error)")
+            debugLog("[holdtotalk] ⚠ Microphone failed to start: \(error)")
             lastError = error.localizedDescription
             state = .idle
             recordingTargetAppPID = nil
@@ -234,7 +234,7 @@ final class DictationEngine: ObservableObject {
         }
 
         let duration = Double(audio.count) / 16000.0
-        debugLog("[pushietalkie] Captured \(String(format: "%.1f", duration))s of audio")
+        debugLog("[holdtotalk] Captured \(String(format: "%.1f", duration))s of audio")
 
         // Transcribe
         state = .transcribing
@@ -244,7 +244,7 @@ final class DictationEngine: ObservableObject {
             transcriber = Transcriber(modelSize: whisperModel)
         }
         guard let activeTranscriber = transcriber else {
-            debugLog("[pushietalkie] ⚠ Transcriber not ready — skipping.")
+            debugLog("[holdtotalk] ⚠ Transcriber not ready — skipping.")
             lastError = "Transcriber not ready"
             state = .idle
             recordingTargetAppPID = nil
@@ -254,7 +254,7 @@ final class DictationEngine: ObservableObject {
         do {
             let raw = try await activeTranscriber.transcribe(audio)
             guard !raw.isEmpty else {
-                debugLog("[pushietalkie] (no speech detected)")
+                debugLog("[holdtotalk] (no speech detected)")
                 state = .idle
                 // Fix #10: clear stale target info on early return
                 recordingTargetAppPID = nil
@@ -263,14 +263,14 @@ final class DictationEngine: ObservableObject {
             }
             lastError = nil  // clear any previous error on success
             lastRawText = raw
-            debugLog("[pushietalkie] Raw: \(raw)")
+            debugLog("[holdtotalk] Raw: \(raw)")
 
             var finalText = raw
             if cleanupEnabled {
                 state = .cleaning
                 let cleaned = try await TextProcessor(prompt: cleanupPrompt).cleanup(raw)
                 if cleaned != raw {
-                    debugLog("[pushietalkie] Cleaned: \(cleaned)")
+                    debugLog("[holdtotalk] Cleaned: \(cleaned)")
                     finalText = cleaned
                 }
             }
@@ -287,14 +287,14 @@ final class DictationEngine: ObservableObject {
             )
             if report.success {
                 lastInsertDebug = report.summary
-                debugLog("[pushietalkie] Inserted via \(report.method ?? "unknown").")
+                debugLog("[holdtotalk] Inserted via \(report.method ?? "unknown").")
             } else {
                 lastInsertDebug = report.summary
-                debugLog("[pushietalkie] Insert unconfirmed. \(report.attempts.joined(separator: " | "))")
+                debugLog("[holdtotalk] Insert unconfirmed. \(report.attempts.joined(separator: " | "))")
             }
         } catch {
             lastError = error.localizedDescription
-            debugLog("[pushietalkie] Error: \(error)")
+            debugLog("[holdtotalk] Error: \(error)")
         }
 
         state = .idle
@@ -318,7 +318,7 @@ final class DictationEngine: ObservableObject {
                 return  // Task was cancelled — exit cleanly
             }
             hasAccessibility = true
-            print("[pushietalkie] Accessibility permission granted.")
+            print("[holdtotalk] Accessibility permission granted.")
         }
     }
 

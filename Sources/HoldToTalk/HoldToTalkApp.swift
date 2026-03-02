@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-struct PushieTalkieApp: App {
+struct HoldToTalkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var engine = DictationEngine()
     @Environment(\.openWindow) private var openWindow
@@ -31,7 +31,7 @@ struct PushieTalkieApp: App {
     var body: some Scene {
         MenuBarExtra {
             VStack(alignment: .leading, spacing: 4) {
-                Text("PushieTalkie")
+                Text("Hold to Talk")
                     .font(.headline)
                     .padding(.bottom, 2)
 
@@ -91,17 +91,17 @@ struct PushieTalkieApp: App {
             .padding(8)
             .frame(width: 260)
         } label: {
-            Label("PushieTalkie", systemImage: engine.state.icon)
+            Label("Hold to Talk", systemImage: engine.state.icon)
         }
 
-        Window("Welcome to PushieTalkie", id: "onboarding") {
+        Window("Welcome to Hold to Talk", id: "onboarding") {
             OnboardingView(engine: engine, modelManager: engine.modelManager)
         }
         .windowResizability(.contentSize)
         .windowStyle(.hiddenTitleBar)
         .defaultLaunchBehavior(shouldShowOnboarding ? .presented : .suppressed)
 
-        Window("PushieTalkie Settings", id: "settings") {
+        Window("Hold to Talk Settings", id: "settings") {
             SettingsView(engine: engine, modelManager: engine.modelManager)
         }
         .windowResizability(.contentSize)
@@ -119,14 +119,14 @@ struct PushieTalkieApp: App {
 
     /// Loads the app icon from the .app bundle or from the source tree for debug runs.
     static let appIcon: NSImage? = {
-        if let bundled = Bundle.main.image(forResource: "PushieTalkie") { return bundled }
+        if let bundled = Bundle.main.image(forResource: "HoldToTalk") { return bundled }
 
         let sourceFile = URL(fileURLWithPath: #filePath)
         let projectRoot = sourceFile
-            .deletingLastPathComponent()  // Sources/PushieTalkie/
+            .deletingLastPathComponent()  // Sources/HoldToTalk/
             .deletingLastPathComponent()  // Sources/
             .deletingLastPathComponent()  // project root
-        let url = projectRoot.appendingPathComponent("Resources/PushieTalkie.icns")
+        let url = projectRoot.appendingPathComponent("Resources/HoldToTalk.icns")
         if let img = NSImage(contentsOf: url), img.isValid { return img }
         return nil
     }()
