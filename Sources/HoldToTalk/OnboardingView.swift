@@ -68,7 +68,7 @@ struct OnboardingView: View {
             appIcon
                 .frame(width: 80, height: 80)
 
-            Text("Welcome to PushieTalkie")
+            Text("Welcome to Hold to Talk")
                 .font(.title.bold())
 
             Text("Voice dictation that runs entirely on your Mac.\nHold a key, speak, release — your words appear wherever your cursor is.")
@@ -94,7 +94,7 @@ struct OnboardingView: View {
             Text("Permissions")
                 .font(.title2.bold())
 
-            Text("PushieTalkie needs a few permissions to work.")
+            Text("Hold to Talk needs a few permissions to work.")
                 .font(.body)
                 .foregroundStyle(.secondary)
 
@@ -116,13 +116,14 @@ struct OnboardingView: View {
                     subtitle: "Paste text into the active app",
                     granted: hasAccessibility
                 ) {
-                    if !hasShownAccessibilityPrompt {
-                        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                        _ = AXIsProcessTrustedWithOptions(opts)
-                        hasShownAccessibilityPrompt = true
-                    } else {
+                    // Always request so macOS registers the app in the Accessibility list
+                    let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                    _ = AXIsProcessTrustedWithOptions(opts)
+                    if hasShownAccessibilityPrompt {
+                        // Also open Settings directly on subsequent presses
                         openSystemSettings("Privacy_Accessibility")
                     }
+                    hasShownAccessibilityPrompt = true
                 }
 
                 permissionRow(
@@ -234,7 +235,7 @@ struct OnboardingView: View {
             Text("Download Model")
                 .font(.title2.bold())
 
-            Text("PushieTalkie needs a speech recognition model.\nPick one to download — you can change this later in Settings.")
+            Text("Hold to Talk needs a speech recognition model.\nPick one to download — you can change this later in Settings.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -379,14 +380,14 @@ struct OnboardingView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.up")
                         .font(.caption.bold())
-                    Text("PushieTalkie lives in your menu bar")
+                    Text("Hold to Talk lives in your menu bar")
                         .font(.callout)
                 }
                 .foregroundStyle(.secondary)
                 .padding(.top, 12)
             }
 
-            Button("Start Using PushieTalkie") {
+            Button("Start Using Hold to Talk") {
                 step = 0
                 engine.completeOnboarding()
                 dismiss()
@@ -408,7 +409,7 @@ struct OnboardingView: View {
 
     @ViewBuilder
     private var appIcon: some View {
-        if let icon = PushieTalkieApp.appIcon {
+        if let icon = HoldToTalkApp.appIcon {
             Image(nsImage: icon)
                 .resizable()
         } else {

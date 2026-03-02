@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="Resources/logo.png" width="128" alt="PushieTalkie logo">
+  <img src="Resources/logo.png" width="128" alt="Hold to Talk logo">
 </p>
 
-# PushieTalkie
+# Hold to Talk
 
 Free, open-source voice dictation for macOS. Hold a key, speak, release — your words appear wherever your cursor is. Nothing ever leaves your Mac.
 
@@ -12,7 +12,7 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 - **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
 
 <p align="center">
-  <img src="Resources/screenshot.png" width="680" alt="PushieTalkie screenshot">
+  <img src="Resources/screenshot.png" width="680" alt="Hold to Talk screenshot">
 </p>
 
 ## Install
@@ -21,12 +21,12 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 
 ### Download pre-built binary
 
-Grab the latest `.app` from [GitHub Releases](https://github.com/jxucoder/pushietalkie/releases), move it to `/Applications`, and open it. macOS will prompt for Microphone and Accessibility permissions on first launch.
+Grab the latest `.app` from [GitHub Releases](https://github.com/jxucoder/holdtotalk/releases), move it to `/Applications`, and open it. macOS will prompt for Microphone and Accessibility permissions on first launch.
 
 ### Homebrew
 
 ```bash
-brew install jxucoder/tap/pushietalkie
+brew install jxucoder/tap/holdtotalk
 ```
 
 ### Build from source
@@ -34,8 +34,8 @@ brew install jxucoder/tap/pushietalkie
 Requires Xcode command line tools.
 
 ```bash
-git clone https://github.com/jxucoder/pushietalkie.git
-cd pushietalkie
+git clone https://github.com/jxucoder/holdtotalk.git
+cd holdtotalk
 make build
 make run
 ```
@@ -64,7 +64,7 @@ Open via menu bar → Settings:
 ## Architecture
 
 ```
-PushieTalkieApp        SwiftUI menu bar app, entry point
+HoldToTalkApp          SwiftUI menu bar app, entry point
 DictationEngine        Orchestrator: record → transcribe → cleanup → paste
 AudioRecorder          AVAudioEngine mic capture, resamples to 16 kHz mono
 Transcriber            WhisperKit wrapper, lazy model loading
@@ -96,7 +96,7 @@ Contributions are welcome! Please open an issue to discuss larger changes before
 
 ## Privacy
 
-PushieTalkie runs entirely on your Mac — no cloud, no accounts, no tracking. See the full [Privacy Policy](PRIVACY.md).
+Hold to Talk runs entirely on your Mac — no cloud, no accounts, no tracking. See the full [Privacy Policy](PRIVACY.md).
 
 ## License
 

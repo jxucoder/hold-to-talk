@@ -48,16 +48,16 @@ jobs:
         env:
           SIGNING_IDENTITY: ${{ secrets.DEVELOPER_ID_SIGNING_IDENTITY }}
         run: |
-          mkdir -p .build/PushieTalkie.app/Contents/MacOS
-          mkdir -p .build/PushieTalkie.app/Contents/Resources
-          cp .build/release/PushieTalkie .build/PushieTalkie.app/Contents/MacOS/
-          cp Resources/Info.plist .build/PushieTalkie.app/Contents/
-          cp Resources/PushieTalkie.icns .build/PushieTalkie.app/Contents/Resources/
+          mkdir -p .build/HoldToTalk.app/Contents/MacOS
+          mkdir -p .build/HoldToTalk.app/Contents/Resources
+          cp .build/release/HoldToTalk .build/HoldToTalk.app/Contents/MacOS/
+          cp Resources/Info.plist .build/HoldToTalk.app/Contents/
+          cp Resources/HoldToTalk.icns .build/HoldToTalk.app/Contents/Resources/
           codesign --force --options runtime --timestamp \
             -s "$SIGNING_IDENTITY" \
-            --entitlements Resources/PushieTalkie.entitlements \
-            .build/PushieTalkie.app
-          codesign --verify --verbose .build/PushieTalkie.app
+            --entitlements Resources/HoldToTalk.entitlements \
+            .build/HoldToTalk.app
+          codesign --verify --verbose .build/HoldToTalk.app
 
       - name: Notarize app
         timeout-minutes: 30
@@ -66,21 +66,21 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          cd .build && zip -r PushieTalkie.zip PushieTalkie.app && cd ..
-          xcrun notarytool submit .build/PushieTalkie.zip \
+          cd .build && zip -r HoldToTalk.zip HoldToTalk.app && cd ..
+          xcrun notarytool submit .build/HoldToTalk.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --wait --timeout 20m
-          xcrun stapler staple .build/PushieTalkie.app
+          xcrun stapler staple .build/HoldToTalk.app
 
       - name: Create release zip
-        run: cd .build && zip -r PushieTalkie-${{ github.ref_name }}.zip PushieTalkie.app
+        run: cd .build && zip -r HoldToTalk-${{ github.ref_name }}.zip HoldToTalk.app
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: .build/PushieTalkie-${{ github.ref_name }}.zip
+          files: .build/HoldToTalk-${{ github.ref_name }}.zip
           generate_release_notes: true
 
       - name: Update Homebrew tap
@@ -88,16 +88,16 @@ jobs:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          SHA256=$(shasum -a 256 .build/PushieTalkie-${GITHUB_REF_NAME}.zip | awk '{print $1}')
+          SHA256=$(shasum -a 256 .build/HoldToTalk-${GITHUB_REF_NAME}.zip | awk '{print $1}')
 
           git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/jxucoder/homebrew-tap.git /tmp/homebrew-tap
           mkdir -p /tmp/homebrew-tap/Casks
 
-          sed "s/TMPL_VERSION/$VERSION/g; s/TMPL_SHA256/$SHA256/g" Casks/pushietalkie.rb > /tmp/homebrew-tap/Casks/pushietalkie.rb
+          sed "s/TMPL_VERSION/$VERSION/g; s/TMPL_SHA256/$SHA256/g" Casks/holdtotalk.rb > /tmp/homebrew-tap/Casks/holdtotalk.rb
 
           cd /tmp/homebrew-tap
           git add .
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "Update pushietalkie to $VERSION" || true
+          git commit -m "Update holdtotalk to $VERSION" || true
           git push

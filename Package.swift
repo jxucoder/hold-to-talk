@@ -2,16 +2,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "PushieTalkie",
+    name: "HoldToTalk",
     platforms: [.macOS(.v15)],
     dependencies: [
         .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
     ],
     targets: [
         .executableTarget(
-            name: "PushieTalkie",
+            name: "HoldToTalk",
             dependencies: ["WhisperKit"],
-            path: "Sources/PushieTalkie",
+            path: "Sources/HoldToTalk",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
