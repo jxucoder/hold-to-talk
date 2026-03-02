@@ -4,12 +4,12 @@ import Foundation
 /// Launch-argument helpers for testing flows without fighting real permissions / state.
 ///
 /// Usage (from terminal):
-///   swift run PushieTalkie -- --reset-onboarding            # wipe onboarding state and show it
-///   swift run PushieTalkie -- --onboarding-step 2           # jump straight to model-download step
-///   swift run PushieTalkie -- --skip-permissions             # pretend all permissions are granted
+///   swift run HoldToTalk -- --reset-onboarding            # wipe onboarding state and show it
+///   swift run HoldToTalk -- --onboarding-step 2           # jump straight to model-download step
+///   swift run HoldToTalk -- --skip-permissions             # pretend all permissions are granted
 ///
 /// Combine freely:
-///   swift run PushieTalkie -- --reset-onboarding --onboarding-step 3 --skip-permissions
+///   swift run HoldToTalk -- --reset-onboarding --onboarding-step 3 --skip-permissions
 enum DebugFlags {
     private static let args = ProcessInfo.processInfo.arguments
 

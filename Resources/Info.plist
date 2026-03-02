@@ -3,26 +3,26 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>PushieTalkie</string>
+    <string>Hold to Talk</string>
     <key>CFBundleIdentifier</key>
-    <string>com.pushietalkie.app</string>
+    <string>com.holdtotalk.app</string>
     <key>CFBundleVersion</key>
     <string>0.1.0</string>
     <key>CFBundleShortVersionString</key>
     <string>0.1.0</string>
     <key>CFBundleExecutable</key>
-    <string>PushieTalkie</string>
+    <string>HoldToTalk</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>
-    <string>PushieTalkie.icns</string>
+    <string>HoldToTalk.icns</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>PushieTalkie needs microphone access for voice dictation.</string>
+    <string>Hold to Talk needs microphone access for voice dictation.</string>
     <key>NSAccessibilityUsageDescription</key>
-    <string>PushieTalkie needs accessibility access to listen for hotkeys and paste text.</string>
+    <string>Hold to Talk needs accessibility access to listen for hotkeys and paste text.</string>
 </dict>
 </plist>
