@@ -1,5 +1,6 @@
 import SwiftUI
 import ApplicationServices
+import AVFoundation
 import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -73,7 +74,11 @@ struct HoldToTalkApp: App {
                         if !engine.hasMicrophone {
                             permissionWarningRow("Microphone not granted")
                             Button("Grant Microphone…") {
-                                openSystemSettings("Privacy_Microphone")
+                                AVCaptureDevice.requestAccess(for: .audio) { _ in
+                                    Task { @MainActor in
+                                        openSystemSettings("Privacy_Microphone")
+                                    }
+                                }
                             }
                             .font(.caption)
                         }
@@ -81,6 +86,8 @@ struct HoldToTalkApp: App {
                         if !engine.hasAccessibility {
                             permissionWarningRow("Accessibility not granted")
                             Button("Grant Accessibility…") {
+                                let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                                _ = AXIsProcessTrustedWithOptions(opts)
                                 openSystemSettings("Privacy_Accessibility")
                             }
                             .font(.caption)
@@ -89,6 +96,7 @@ struct HoldToTalkApp: App {
                         if !engine.hasInputMonitoring {
                             permissionWarningRow("Input Monitoring not granted")
                             Button("Grant Input Monitoring…") {
+                                _ = CGRequestListenEventAccess()
                                 openSystemSettings("Privacy_ListenEvent")
                             }
                             .font(.caption)
