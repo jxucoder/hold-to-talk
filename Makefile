@@ -29,6 +29,7 @@ build:
 	@cp Resources/HoldToTalk.icns "$(APP_BUNDLE)/Contents/Resources/"
 	@cp Resources/PrivacyInfo.xcprivacy "$(APP_BUNDLE)/Contents/Resources/"
 	@rsync -a --delete "$(SPARKLE_FRAMEWORK)" "$(APP_BUNDLE)/Contents/Frameworks/"
+	@install_name_tool -add_rpath @executable_path/../Frameworks "$(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)" 2>/dev/null || true
 	@if [ "$(SIGNING_IDENTITY)" = "-" ]; then \
 		codesign -f -s - "$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework"; \
 		codesign -f -s - --entitlements Resources/HoldToTalk.dev.entitlements "$(APP_BUNDLE)"; \

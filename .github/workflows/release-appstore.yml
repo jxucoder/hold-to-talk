@@ -68,6 +68,7 @@ jobs:
           cp Resources/HoldToTalk.icns "$APP_BUNDLE/Contents/Resources/"
           cp Resources/PrivacyInfo.xcprivacy "$APP_BUNDLE/Contents/Resources/"
           rsync -a --delete "$SPARKLE_FW" "$APP_BUNDLE/Contents/Frameworks/"
+          install_name_tool -add_rpath @executable_path/../Frameworks "$APP_BUNDLE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
 
       - name: Sign for App Store
         env:
