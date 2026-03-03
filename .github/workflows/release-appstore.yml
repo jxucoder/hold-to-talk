@@ -74,7 +74,7 @@ jobs:
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          codesign -f --options runtime --timestamp \
+          codesign -f --deep --options runtime --timestamp \
             -s "Apple Distribution: Jiarui Xu ($APPLE_TEAM_ID)" \
             "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 
