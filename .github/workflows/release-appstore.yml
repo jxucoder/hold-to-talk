@@ -9,6 +9,7 @@ on:
 
 env:
   APP_NAME: HoldToTalk
+  APP_BUNDLE: .build/HoldToTalk.app
 
 jobs:
   build-and-upload:
@@ -21,61 +22,66 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-
       - name: Stamp version
         run: |
           plutil -replace CFBundleVersion -string "${{ inputs.version }}" Resources/Info.plist
           plutil -replace CFBundleShortVersionString -string "${{ inputs.version }}" Resources/Info.plist
 
-      - name: Install signing certificate
+      - name: Install signing certificates
         env:
-          CERTIFICATE_P12: ${{ secrets.APPSTORE_CERTIFICATE_P12 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.APPSTORE_CERTIFICATE_PASSWORD }}
+          APP_CERTIFICATE_P12: ${{ secrets.APPSTORE_CERTIFICATE_P12 }}
+          APP_CERTIFICATE_PASSWORD: ${{ secrets.APPSTORE_CERTIFICATE_PASSWORD }}
+          INSTALLER_CERTIFICATE_P12: ${{ secrets.INSTALLER_CERTIFICATE_P12 }}
+          INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.INSTALLER_CERTIFICATE_PASSWORD }}
         run: |
-          CERT_PATH="$RUNNER_TEMP/certificate.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
-
-          echo "$CERTIFICATE_P12" | base64 --decode -o "$CERT_PATH"
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          security import "$CERT_PATH" \
-            -P "$CERTIFICATE_PASSWORD" \
-            -A \
-            -t cert \
-            -f pkcs12 \
-            -k "$KEYCHAIN_PATH"
+          echo "$APP_CERTIFICATE_P12" | base64 --decode -o "$RUNNER_TEMP/app.p12"
+          security import "$RUNNER_TEMP/app.p12" \
+            -P "$APP_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+
+          echo "$INSTALLER_CERTIFICATE_P12" | base64 --decode -o "$RUNNER_TEMP/installer.p12"
+          security import "$RUNNER_TEMP/installer.p12" \
+            -P "$INSTALLER_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
 
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
 
-      - name: Prepare ExportOptions plist
+      - name: Build
+        run: |
+          swift build -c release
+
+          mkdir -p "$APP_BUNDLE/Contents/MacOS"
+          mkdir -p "$APP_BUNDLE/Contents/Resources"
+          cp ".build/release/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
+          cp Resources/Info.plist "$APP_BUNDLE/Contents/"
+          cp Resources/HoldToTalk.icns "$APP_BUNDLE/Contents/Resources/"
+          cp Resources/PrivacyInfo.xcprivacy "$APP_BUNDLE/Contents/Resources/"
+
+      - name: Sign for App Store
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          sed -i '' "s/__TEAM_ID__/$APPLE_TEAM_ID/g" Resources/ExportOptions-AppStore.plist
+          codesign -f --options runtime --timestamp \
+            -s "Apple Distribution: Jiarui Xu ($APPLE_TEAM_ID)" \
+            --entitlements Resources/HoldToTalk.entitlements \
+            "$APP_BUNDLE"
 
-      - name: Build archive
+      - name: Package as .pkg
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcodebuild archive \
-            -scheme "$APP_NAME" \
-            -destination 'generic/platform=macOS' \
-            -clonedSourcePackagesDirPath .build/spm \
-            -archivePath "$RUNNER_TEMP/$APP_NAME.xcarchive" \
-            MARKETING_VERSION="${{ inputs.version }}" \
-            -quiet
-
-      - name: Export for App Store
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/$APP_NAME.xcarchive" \
-            -exportPath "$RUNNER_TEMP/appstore" \
-            -exportOptionsPlist Resources/ExportOptions-AppStore.plist
+          productbuild \
+            --component "$APP_BUNDLE" /Applications \
+            --sign "3rd Party Mac Developer Installer: Jiarui Xu ($APPLE_TEAM_ID)" \
+            "$RUNNER_TEMP/$APP_NAME.pkg"
 
       - name: Upload to App Store Connect
         env:
@@ -87,7 +93,7 @@ jobs:
           echo "$ASC_API_KEY" > "$KEY_PATH"
 
           xcrun altool --upload-app \
-            -f "$RUNNER_TEMP/appstore/$APP_NAME.ipa" \
+            -f "$RUNNER_TEMP/$APP_NAME.pkg" \
             --type macos \
             --apiKey "$ASC_API_KEY_ID" \
             --apiIssuer "$ASC_API_ISSUER_ID" \
