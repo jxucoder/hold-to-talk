@@ -89,8 +89,8 @@ jobs:
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           ASC_API_KEY: ${{ secrets.ASC_API_KEY }}
         run: |
-          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
-          echo "$ASC_API_KEY" > "$KEY_PATH"
+          mkdir -p ~/private_keys
+          echo "$ASC_API_KEY" > ~/private_keys/AuthKey_${ASC_API_KEY_ID}.p8
 
           xcrun altool --upload-app \
             -f "$RUNNER_TEMP/$APP_NAME.pkg" \
