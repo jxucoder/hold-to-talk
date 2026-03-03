@@ -1,16 +1,32 @@
 import SwiftUI
 import ServiceManagement
+import AVFoundation
+import ApplicationServices
+import Sparkle
 
 struct SettingsView: View {
     @ObservedObject var engine: DictationEngine
     @ObservedObject var modelManager: ModelManager
+    var updater: SPUUpdater? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var showManageModels = false
     @State private var showCleanupPrompt = false
     @State private var launchAtLogin: Bool = (SMAppService.mainApp.status == .enabled)
+    @State private var isRunningEnvironmentFix = false
+    @State private var pendingFixInputMonitoring = false
+    @State private var diagnosticsMessage: String?
 
     private let hotkeys = HotkeyManager.Hotkey.allCases
+    private var activeTranscriptionProfile: TranscriptionProfile {
+        TranscriptionProfile(rawValue: engine.transcriptionProfile) ?? .balanced
+    }
+    private var activeModelID: String { engine.whisperModel }
+    private var isActiveModelDownloaded: Bool { modelManager.downloaded.contains(activeModelID) }
+    private var isActiveModelDownloading: Bool { modelManager.downloading.contains(activeModelID) }
+    private var allChecksHealthy: Bool {
+        engine.hasMicrophone && engine.hasAccessibility && engine.hasInputMonitoring && isActiveModelDownloaded
+    }
 
     var body: some View {
         Form {
@@ -61,10 +77,70 @@ struct SettingsView: View {
                                 try SMAppService.mainApp.unregister()
                             }
                         } catch {
-                            // Revert toggle on failure
                             launchAtLogin = !enabled
                         }
                     }
+
+                if let updater {
+                    Button("Check for Updates…") {
+                        updater.checkForUpdates()
+                    }
+                }
+            }
+
+            Section("Diagnostics") {
+                statusRow(
+                    title: "Microphone",
+                    ok: engine.hasMicrophone,
+                    details: engine.hasMicrophone ? "Granted" : "Not granted"
+                )
+                statusRow(
+                    title: "Accessibility",
+                    ok: engine.hasAccessibility,
+                    details: engine.hasAccessibility ? "Granted" : "Not granted"
+                )
+                statusRow(
+                    title: "Input Monitoring",
+                    ok: engine.hasInputMonitoring,
+                    details: engine.hasInputMonitoring ? "Granted" : "Not granted"
+                )
+                statusRow(
+                    title: "Active model",
+                    ok: isActiveModelDownloaded,
+                    details: isActiveModelDownloaded
+                        ? "\(modelDisplayName(activeModelID)) ready"
+                        : (isActiveModelDownloading
+                            ? "Downloading \(modelDisplayName(activeModelID))..."
+                            : "\(modelDisplayName(activeModelID)) not downloaded")
+                )
+
+                if let diagnosticsMessage {
+                    Text(diagnosticsMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Button(allChecksHealthy ? "Environment Healthy" : "Fix Environment") {
+                    runGuidedEnvironmentFix()
+                }
+                .disabled(isRunningEnvironmentFix || allChecksHealthy)
+
+                if isRunningEnvironmentFix {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            Section("Transcription") {
+                Picker("Profile", selection: $engine.transcriptionProfile) {
+                    ForEach(TranscriptionProfile.allCases) { profile in
+                        Text(profile.displayName)
+                            .tag(profile.rawValue)
+                    }
+                }
+                Text(activeTranscriptionProfile.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Whisper Model") {
@@ -149,14 +225,33 @@ struct SettingsView: View {
         .padding()
         .onAppear {
             modelManager.refreshDownloadStatus()
+            refreshPermissionSnapshot()
+            let available = engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels
+            if !available.contains(where: { $0.id == engine.whisperModel }) {
+                engine.whisperModel = engine.recommendedWhisperModelID
+            }
+            if TranscriptionProfile(rawValue: engine.transcriptionProfile) == nil {
+                engine.transcriptionProfile = TranscriptionProfile.balanced.rawValue
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshPermissionSnapshot()
+            continueGuidedFixIfNeeded()
+        }
+        .onChange(of: engine.whisperModel) {
+            modelManager.refreshDownloadStatus()
+            if diagnosticsMessage != nil {
+                diagnosticsMessage = nil
+            }
         }
     }
 
     // MARK: - Model list
 
     private var sortedModels: [WhisperModelInfo] {
+        let models = engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels
         // Fix #16: stable sort — downloaded first, then alphabetical by id
-        WhisperModelInfo.all.sorted { a, b in
+        return models.sorted { a, b in
             let aDown = modelManager.downloaded.contains(a.id)
             let bDown = modelManager.downloaded.contains(b.id)
             if aDown != bDown { return aDown }
@@ -165,8 +260,9 @@ struct SettingsView: View {
     }
 
     private var modelListView: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(WhisperModelInfo.all) { model in
+        let models = engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels
+        return VStack(alignment: .leading, spacing: 6) {
+            ForEach(models) { model in
                 modelRow(model)
             }
         }
@@ -244,6 +340,145 @@ struct SettingsView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    // MARK: - Diagnostics
+
+    private func statusRow(title: String, ok: Bool, details: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(ok ? .green : .orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(details)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+    }
+
+    private func refreshPermissionSnapshot() {
+        #if DEBUG
+        if DebugFlags.skipPermissions {
+            engine.hasMicrophone = true
+            engine.hasAccessibility = true
+            engine.hasInputMonitoring = true
+            return
+        }
+        #endif
+        engine.hasMicrophone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        engine.hasAccessibility = AXIsProcessTrusted()
+        engine.hasInputMonitoring = CGPreflightListenEventAccess()
+    }
+
+    private func runGuidedEnvironmentFix() {
+        isRunningEnvironmentFix = true
+        pendingFixInputMonitoring = false
+        diagnosticsMessage = nil
+
+        refreshPermissionSnapshot()
+
+        requestMicrophonePermission(openSettings: true) {
+            Task { @MainActor in
+                refreshPermissionSnapshot()
+                continueAfterMicrophoneFix()
+            }
+        }
+    }
+
+    private func continueAfterMicrophoneFix() {
+        guard engine.hasMicrophone else {
+            diagnosticsMessage = "Enable Microphone access in System Settings, then return here."
+            isRunningEnvironmentFix = false
+            return
+        }
+
+        requestAccessibilityPermission(openSettings: false)
+        refreshPermissionSnapshot()
+        if !engine.hasAccessibility {
+            pendingFixInputMonitoring = true
+            diagnosticsMessage = "Enable Accessibility, then return to Hold to Talk."
+            openSystemSettings("Privacy_Accessibility")
+            isRunningEnvironmentFix = false
+            return
+        }
+
+        finishGuidedEnvironmentFix()
+    }
+
+    private func continueGuidedFixIfNeeded() {
+        guard pendingFixInputMonitoring else { return }
+        guard engine.hasAccessibility else { return }
+
+        pendingFixInputMonitoring = false
+        finishGuidedEnvironmentFix()
+    }
+
+    private func finishGuidedEnvironmentFix() {
+        requestInputMonitoringPermission(openSettings: false)
+        refreshPermissionSnapshot()
+
+        if !engine.hasInputMonitoring {
+            diagnosticsMessage = "Enable Input Monitoring, then return to Hold to Talk."
+            openSystemSettings("Privacy_ListenEvent")
+            isRunningEnvironmentFix = false
+            return
+        }
+
+        if !isActiveModelDownloaded && !isActiveModelDownloading {
+            modelManager.download(activeModelID)
+            diagnosticsMessage = "Downloading \(modelDisplayName(activeModelID))…"
+        } else if isActiveModelDownloading {
+            diagnosticsMessage = "Downloading \(modelDisplayName(activeModelID))…"
+        } else {
+            diagnosticsMessage = "Environment is healthy."
+        }
+
+        isRunningEnvironmentFix = false
+    }
+
+    private func requestMicrophonePermission(openSettings: Bool, completion: @escaping () -> Void) {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            completion()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { _ in
+                Task { @MainActor in
+                    completion()
+                }
+            }
+        case .denied, .restricted:
+            if openSettings {
+                openSystemSettings("Privacy_Microphone")
+            }
+            completion()
+        @unknown default:
+            completion()
+        }
+    }
+
+    private func requestAccessibilityPermission(openSettings: Bool) {
+        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(opts)
+        if !AXIsProcessTrusted() && openSettings {
+            openSystemSettings("Privacy_Accessibility")
+        }
+    }
+
+    private func requestInputMonitoringPermission(openSettings: Bool) {
+        _ = CGRequestListenEventAccess()
+        UserDefaults.standard.set(true, forKey: "hasPromptedInputMonitoring")
+        if !CGPreflightListenEventAccess() && openSettings {
+            openSystemSettings("Privacy_ListenEvent")
+        }
+    }
+
+    private func modelDisplayName(_ id: String) -> String {
+        let models = engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels
+        return models.first { $0.id == id }?.displayName
+            ?? WhisperModelInfo.all.first { $0.id == id }?.displayName
+            ?? id
     }
 
 }

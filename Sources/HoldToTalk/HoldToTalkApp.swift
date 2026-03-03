@@ -1,5 +1,6 @@
 import SwiftUI
 import ApplicationServices
+import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -20,6 +21,8 @@ struct HoldToTalkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var engine = DictationEngine()
     @Environment(\.openWindow) private var openWindow
+    @State private var installErrorMessage: String?
+    private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     private var shouldShowOnboarding: Bool {
         #if DEBUG
@@ -37,18 +40,66 @@ struct HoldToTalkApp: App {
 
                 label
 
-                if !engine.hasAccessibility {
+                if !isInstalledInApplicationsFolder() {
                     HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                        Text("Accessibility not granted")
+                        Image(systemName: "arrow.down.app.fill")
+                            .foregroundStyle(.orange)
+                        Text("Install in /Applications recommended")
                             .font(.caption)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.orange)
                     }
-                    Button("Grant Accessibility…") {
-                        openSystemSettings("Privacy_Accessibility")
+                    Button("Install to Applications…") {
+                        installErrorMessage = nil
+                        switch installToApplicationsAndRelaunch() {
+                        case .success:
+                            break  // app relaunches and exits current process
+                        case .failure(let message):
+                            installErrorMessage = message
+                        }
                     }
                     .font(.caption)
+
+                    if let installErrorMessage {
+                        Text(installErrorMessage)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                    }
+                    Divider()
+                }
+
+                if !engine.hasMicrophone || !engine.hasAccessibility || !engine.hasInputMonitoring {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if !engine.hasMicrophone {
+                            permissionWarningRow("Microphone not granted")
+                            Button("Grant Microphone…") {
+                                openSystemSettings("Privacy_Microphone")
+                            }
+                            .font(.caption)
+                        }
+
+                        if !engine.hasAccessibility {
+                            permissionWarningRow("Accessibility not granted")
+                            Button("Grant Accessibility…") {
+                                openSystemSettings("Privacy_Accessibility")
+                            }
+                            .font(.caption)
+                        }
+
+                        if !engine.hasInputMonitoring {
+                            permissionWarningRow("Input Monitoring not granted")
+                            Button("Grant Input Monitoring…") {
+                                openSystemSettings("Privacy_ListenEvent")
+                            }
+                            .font(.caption)
+                        }
+
+                        Button("Open Onboarding…") {
+                            openWindow(id: "onboarding")
+                            NSApp.activate(ignoringOtherApps: true)
+                        }
+                        .font(.caption)
+                    }
                 }
                 Divider()
 
@@ -66,11 +117,6 @@ struct HoldToTalkApp: App {
                 }
 
                 if !engine.lastCleanText.isEmpty {
-                    Text(engine.lastCleanText.prefix(80) + (engine.lastCleanText.count > 80 ? "…" : ""))
-                        .lineLimit(2)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 2)
                     Button("Copy Last Transcription") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(engine.lastCleanText, forType: .string)
@@ -89,7 +135,7 @@ struct HoldToTalkApp: App {
                     .keyboardShortcut("q")
             }
             .padding(8)
-            .frame(width: 260)
+            .frame(width: 220)
         } label: {
             Label("Hold to Talk", systemImage: engine.state.icon)
         }
@@ -102,7 +148,7 @@ struct HoldToTalkApp: App {
         .defaultLaunchBehavior(shouldShowOnboarding ? .presented : .suppressed)
 
         Window("Hold to Talk Settings", id: "settings") {
-            SettingsView(engine: engine, modelManager: engine.modelManager)
+            SettingsView(engine: engine, modelManager: engine.modelManager, updater: updaterController.updater)
         }
         .windowResizability(.contentSize)
     }
@@ -115,6 +161,16 @@ struct HoldToTalkApp: App {
             systemImage: engine.state.icon
         )
         .font(.headline)
+    }
+
+    private func permissionWarningRow(_ text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.red)
+        }
     }
 
     /// Loads the app icon from the .app bundle or from the source tree for debug runs.

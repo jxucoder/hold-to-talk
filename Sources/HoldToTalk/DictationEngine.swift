@@ -2,6 +2,7 @@ import SwiftUI
 import ApplicationServices
 import AppKit
 import Combine
+import AVFoundation
 
 /// Orchestrates the record → transcribe → cleanup → insert pipeline.
 @MainActor
@@ -47,19 +48,35 @@ final class DictationEngine: ObservableObject {
     @Published var lastInsertDebug: String = ""
     /// Brief user-visible error message; cleared on next successful dictation.
     @Published var lastError: String?
+    @Published var hasMicrophone: Bool = {
+        #if DEBUG
+        if DebugFlags.skipPermissions { return true }
+        #endif
+        return AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+    }()
     @Published var hasAccessibility: Bool = {
         #if DEBUG
         if DebugFlags.skipPermissions { return true }
         #endif
         return AXIsProcessTrusted()
     }()
+    @Published var hasInputMonitoring: Bool = {
+        #if DEBUG
+        if DebugFlags.skipPermissions { return true }
+        #endif
+        return CGPreflightListenEventAccess()
+    }()
 
     @AppStorage("onboardingComplete") var onboardingComplete = false
-    @AppStorage("whisperModel") var whisperModel = "large-v3-turbo"
+    @AppStorage("whisperModel") var whisperModel = WhisperModelInfo.defaultModelID
+    @AppStorage("transcriptionProfile") var transcriptionProfile = TranscriptionProfile.balanced.rawValue
     @AppStorage("cleanupEnabled") var cleanupEnabled = true
     @AppStorage("cleanupPrompt") var cleanupPrompt = TextProcessor.defaultPrompt
     @AppStorage("hotkeyChoice") var hotkeyChoice = "ctrl"
     @AppStorage("hasPromptedInputMonitoring") private var hasPromptedInputMonitoring = false
+
+    let availableWhisperModels: [WhisperModelInfo]
+    let recommendedWhisperModelID: String
 
     private let recorder = AudioRecorder()
     private var transcriber: Transcriber?
@@ -73,6 +90,23 @@ final class DictationEngine: ObservableObject {
     private var activationObserver: NSObjectProtocol?
 
     init() {
+        let profile = WhisperModelInfo.deviceModelProfile()
+        availableWhisperModels = profile.available
+        recommendedWhisperModelID = profile.recommendedID
+
+        // Migrate legacy IDs and guarantee current selection is device-supported.
+        if let stored = UserDefaults.standard.string(forKey: "whisperModel") {
+            let normalized = WhisperModelInfo.normalizeModelID(stored)
+            whisperModel = availableWhisperModels.contains(where: { $0.id == normalized })
+                ? normalized
+                : recommendedWhisperModelID
+        } else {
+            whisperModel = recommendedWhisperModelID
+        }
+        if TranscriptionProfile(rawValue: transcriptionProfile) == nil {
+            transcriptionProfile = TranscriptionProfile.balanced.rawValue
+        }
+
         Task { @MainActor [weak self] in
             guard let self, self.onboardingComplete else { return }
             self.start()
@@ -89,19 +123,8 @@ final class DictationEngine: ObservableObject {
         guard !didStart else { return }
         didStart = true
 
-        #if DEBUG
-        if DebugFlags.skipPermissions {
-            hasAccessibility = true
-        } else {
-            hasAccessibility = AXIsProcessTrusted()
-            if !hasAccessibility { pollAccessibilityPermission() }
-        }
-        #else
-        hasAccessibility = AXIsProcessTrusted()
-        if !hasAccessibility {
-            pollAccessibilityPermission()
-        }
-        #endif
+        refreshPermissionSnapshot()
+        if !hasAccessibility { pollAccessibilityPermission() }
 
         // Immediately re-check accessibility when the user switches back to the app
         activationObserver = NotificationCenter.default.addObserver(
@@ -109,33 +132,25 @@ final class DictationEngine: ObservableObject {
             object: nil,
             queue: .main
         ) { _ in
-            let trusted = AXIsProcessTrusted()
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                if trusted != self.hasAccessibility {
-                    self.hasAccessibility = trusted
-                }
+                self.refreshPermissionSnapshot()
             }
         }
 
-        // Request Input Monitoring if not already granted and not yet prompted
-        // (onboarding may have already triggered the system dialog)
-        if !CGPreflightListenEventAccess() && !hasPromptedInputMonitoring {
-            debugLog("[holdtotalk] Requesting Input Monitoring access…")
-            _ = CGRequestListenEventAccess()
-            hasPromptedInputMonitoring = true
+        // Do not auto-prompt privacy dialogs on startup.
+        // Onboarding/Settings handle explicit prompt sequencing to avoid stacked macOS dialogs.
+        if !hasInputMonitoring {
+            debugLog("[holdtotalk] Input Monitoring missing — prompt deferred to onboarding/settings.")
         }
-
-        // Prompt for Accessibility if not trusted (shows system dialog)
-        if !AXIsProcessTrusted() {
-            let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-            _ = AXIsProcessTrustedWithOptions(opts)
+        if !hasAccessibility {
+            debugLog("[holdtotalk] Accessibility missing — prompt deferred to onboarding/settings.")
         }
 
         // Pre-warm the audio engine so start() is near-instant on first hotkey press
         recorder.prepare()
 
-        debugLog("[holdtotalk] AX=\(AXIsProcessTrusted()), InputMon=\(CGPreflightListenEventAccess())")
+        debugLog("[holdtotalk] Permissions Mic=\(hasMicrophone), AX=\(hasAccessibility), InputMon=\(hasInputMonitoring)")
 
         // Use DispatchQueue.main.async instead of Task { @MainActor in } for lower-latency dispatch
         hotkeyManager.onPress = { [weak self] in
@@ -191,15 +206,12 @@ final class DictationEngine: ObservableObject {
         debugLog("[holdtotalk] beginRecording called, state=\(state)")
         guard state == .idle else { return }
 
-        #if DEBUG
-        if !DebugFlags.skipPermissions {
-            hasAccessibility = AXIsProcessTrusted()
-        }
-        #else
-        hasAccessibility = AXIsProcessTrusted()
-        #endif
+        refreshPermissionSnapshot()
         if !hasAccessibility {
             debugLog("[holdtotalk] ⚠ Accessibility not granted — text insertion will be blocked by macOS.")
+        }
+        if !hasInputMonitoring {
+            debugLog("[holdtotalk] ⚠ Input Monitoring not granted — global hotkey may not trigger in other apps.")
         }
 
         recordingTargetAppPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
@@ -252,7 +264,11 @@ final class DictationEngine: ObservableObject {
             return
         }
         do {
-            let raw = try await activeTranscriber.transcribe(audio)
+            let transcribeStart = Date()
+            let profile = resolvedTranscriptionProfile
+            let raw = try await activeTranscriber.transcribe(audio, profile: profile)
+            let transcribeTime = Date().timeIntervalSince(transcribeStart)
+            debugLog("[holdtotalk] Transcribed \(String(format: "%.1f", duration))s audio in \(String(format: "%.2f", transcribeTime))s [\(profile.rawValue)]")
             guard !raw.isEmpty else {
                 debugLog("[holdtotalk] (no speech detected)")
                 state = .idle
@@ -306,6 +322,10 @@ final class DictationEngine: ObservableObject {
         HotkeyManager.Hotkey(rawValue: hotkeyChoice) ?? .ctrl
     }
 
+    private var resolvedTranscriptionProfile: TranscriptionProfile {
+        TranscriptionProfile(rawValue: transcriptionProfile) ?? .balanced
+    }
+
     /// Polls until Accessibility is granted so the UI updates live.
     /// Fix #14: stored so stop() can cancel it; uses try await (not try?) so it respects cancellation.
     private func pollAccessibilityPermission() {
@@ -327,5 +347,19 @@ final class DictationEngine: ObservableObject {
         guard let app = NSRunningApplication(processIdentifier: pid) else { return }
         guard app.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
         app.activate()
+    }
+
+    private func refreshPermissionSnapshot() {
+        #if DEBUG
+        if DebugFlags.skipPermissions {
+            hasMicrophone = true
+            hasAccessibility = true
+            hasInputMonitoring = true
+            return
+        }
+        #endif
+        hasMicrophone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        hasAccessibility = AXIsProcessTrusted()
+        hasInputMonitoring = CGPreflightListenEventAccess()
     }
 }

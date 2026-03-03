@@ -1,0 +1,98 @@
+name: Release (App Store)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to submit (e.g. 1.0.0). Must match CFBundleShortVersionString."
+        required: true
+
+env:
+  APP_NAME: HoldToTalk
+
+jobs:
+  build-and-upload:
+    name: Build & Upload to App Store Connect
+    runs-on: macos-26
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Stamp version
+        run: |
+          plutil -replace CFBundleVersion -string "${{ inputs.version }}" Resources/Info.plist
+          plutil -replace CFBundleShortVersionString -string "${{ inputs.version }}" Resources/Info.plist
+
+      - name: Install signing certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.APPSTORE_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPSTORE_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          echo "$CERTIFICATE_P12" | base64 --decode -o "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+      - name: Prepare ExportOptions plist
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          sed -i '' "s/__TEAM_ID__/$APPLE_TEAM_ID/g" Resources/ExportOptions-AppStore.plist
+
+      - name: Build archive
+        run: |
+          xcodebuild archive \
+            -scheme "$APP_NAME" \
+            -destination 'generic/platform=macOS' \
+            -clonedSourcePackagesDirPath .build/spm \
+            -archivePath "$RUNNER_TEMP/$APP_NAME.xcarchive" \
+            MARKETING_VERSION="${{ inputs.version }}" \
+            -quiet
+
+      - name: Export for App Store
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/$APP_NAME.xcarchive" \
+            -exportPath "$RUNNER_TEMP/appstore" \
+            -exportOptionsPlist Resources/ExportOptions-AppStore.plist
+
+      - name: Upload to App Store Connect
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY: ${{ secrets.ASC_API_KEY }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          echo "$ASC_API_KEY" > "$KEY_PATH"
+
+          xcrun altool --upload-app \
+            -f "$RUNNER_TEMP/appstore/$APP_NAME.ipa" \
+            --type macos \
+            --apiKey "$ASC_API_KEY_ID" \
+            --apiIssuer "$ASC_API_ISSUER_ID" \
+            --show-progress
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true

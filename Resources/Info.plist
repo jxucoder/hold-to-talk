@@ -24,5 +24,9 @@
     <string>Hold to Talk needs microphone access for voice dictation.</string>
     <key>NSAccessibilityUsageDescription</key>
     <string>Hold to Talk needs accessibility access to listen for hotkeys and paste text.</string>
+    <key>SUFeedURL</key>
+    <string>https://jxucoder.github.io/holdtotalk/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>eczek52R8fP7R9tcDWhOy9FG7NNObkSpxqDyqxfWj50=</string>
 </dict>
 </plist>

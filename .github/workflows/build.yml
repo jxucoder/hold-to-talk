@@ -13,16 +13,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build
-        run: swift build -c release
-
-      - name: Bundle app
-        run: |
-          mkdir -p .build/HoldToTalk.app/Contents/MacOS
-          mkdir -p .build/HoldToTalk.app/Contents/Resources
-          cp .build/release/HoldToTalk .build/HoldToTalk.app/Contents/MacOS/
-          cp Resources/Info.plist .build/HoldToTalk.app/Contents/
-          cp Resources/HoldToTalk.icns .build/HoldToTalk.app/Contents/Resources/
-          codesign -f -s - --entitlements Resources/HoldToTalk.entitlements .build/HoldToTalk.app
+        run: make build
 
       - name: Upload artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -13,7 +13,11 @@ struct OnboardingView: View {
     @State private var hasInputMonitoring = false
     @State private var downloadStarted = false
     @State private var hasShownAccessibilityPrompt = false
-    @State private var hasShownInputMonitoringPrompt = false
+    @State private var hasShownInputMonitoringPrompt = UserDefaults.standard.bool(forKey: "hasPromptedInputMonitoring")
+    @State private var pendingGrantAllInputMonitoring = false
+    @State private var isRequestingPermissions = false
+    @State private var isInstallingToApplications = false
+    @State private var installErrorMessage: String?
     @StateObject private var hotkeyTester = HotkeyTester()
 
     init(engine: DictationEngine, modelManager: ModelManager) {
@@ -64,49 +68,185 @@ struct OnboardingView: View {
     // MARK: - Step 1: Welcome
 
     private var welcomeStep: some View {
-        VStack(spacing: 16) {
-            appIcon
-                .frame(width: 80, height: 80)
+        let installed = isInstalledInApplicationsFolder()
 
-            Text("Welcome to Hold to Talk")
-                .font(.title.bold())
+        return VStack(spacing: 16) {
+            VStack(spacing: 14) {
+                appIcon
+                    .frame(width: 80, height: 80)
 
-            Text("Voice dictation that runs entirely on your Mac.\nHold a key, speak, release — your words appear wherever your cursor is.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
+                Text("Welcome to Hold to Talk")
+                    .font(.title.bold())
 
-            Button("Get Started") {
+                Text("Private voice dictation on your Mac.\nHold a key, speak, release — text appears wherever your cursor is.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 360)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .padding(.horizontal, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.accentColor.opacity(0.08))
+            )
+
+            VStack(alignment: .leading, spacing: 8) {
+                featureRow("lock.fill", "Fully local: audio never leaves your Mac")
+                featureRow("keyboard", "Global hold-to-talk hotkey")
+                featureRow("bolt.fill", "Optimized for low-latency dictation")
+            }
+            .frame(maxWidth: 360, alignment: .leading)
+
+            if !installed {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Install to /Applications", systemImage: "arrow.down.app.fill")
+                        .font(.headline)
+                        .foregroundStyle(.orange)
+                    Text("Hold to Talk works best when installed in /Applications.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Install to Applications") {
+                        installErrorMessage = nil
+                        isInstallingToApplications = true
+                        switch installToApplicationsAndRelaunch() {
+                        case .success:
+                            break
+                        case .failure(let message):
+                            installErrorMessage = message
+                            isInstallingToApplications = false
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+
+                    if isInstallingToApplications {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .frame(maxWidth: 360, alignment: .leading)
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.orange.opacity(0.08))
+                )
+
+                if let installErrorMessage {
+                    Text(installErrorMessage)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 360)
+                }
+            }
+
+            Button(installed ? "Get Started" : "Install to /Applications First") {
                 step = 1
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .padding(.top, 8)
+            .disabled(!installed)
+            .padding(.top, 4)
         }
         .padding(32)
     }
 
+    private func featureRow(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     // MARK: - Step 2: Permissions
+
+    private var hasCorePermissions: Bool {
+        hasMicrophone && hasAccessibility
+    }
+
+    private var hasAllPermissions: Bool {
+        hasCorePermissions && hasInputMonitoring
+    }
+
+    private var permissionsGrantedCount: Int {
+        [hasMicrophone, hasAccessibility, hasInputMonitoring].filter { $0 }.count
+    }
+
+    private var microphoneActionTitle: String {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .notDetermined: return "Grant"
+        case .authorized: return "Granted"
+        case .denied, .restricted: return "Open Settings"
+        @unknown default: return "Grant"
+        }
+    }
+
+    private var accessibilityActionTitle: String {
+        hasShownAccessibilityPrompt ? "Open Settings" : "Grant"
+    }
+
+    private var inputMonitoringActionTitle: String {
+        if hasInputMonitoring { return "Granted" }
+        return hasShownInputMonitoringPrompt ? "Open Settings" : "Grant"
+    }
 
     private var permissionsStep: some View {
         VStack(spacing: 20) {
             Text("Permissions")
                 .font(.title2.bold())
 
-            Text("Hold to Talk needs a few permissions to work.")
+            Text("Grant access in one click. If macOS requires manual approval, we’ll open the right System Settings page.")
                 .font(.body)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Setup Progress")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(permissionsGrantedCount)/3 granted")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                ProgressView(value: Double(permissionsGrantedCount), total: 3)
+                    .progressViewStyle(.linear)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.secondary.opacity(0.08))
+            )
+            .frame(maxWidth: 380)
+
+            Button(hasAllPermissions ? "All Permissions Granted" : "Grant All Permissions") {
+                requestAllPermissions()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(hasAllPermissions || isRequestingPermissions)
 
             VStack(spacing: 12) {
                 permissionRow(
                     icon: "mic.fill",
                     title: "Microphone",
                     subtitle: "Record your voice for transcription",
-                    granted: hasMicrophone
+                    granted: hasMicrophone,
+                    actionTitle: microphoneActionTitle
                 ) {
-                    AVCaptureDevice.requestAccess(for: .audio) { granted in
-                        Task { @MainActor in hasMicrophone = granted }
+                    guard !isRequestingPermissions else { return }
+                    isRequestingPermissions = true
+                    requestMicrophonePermission { [self] in
+                        refreshPermissions()
+                        isRequestingPermissions = false
                     }
                 }
 
@@ -114,45 +254,76 @@ struct OnboardingView: View {
                     icon: "hand.raised.fill",
                     title: "Accessibility",
                     subtitle: "Paste text into the active app",
-                    granted: hasAccessibility
+                    granted: hasAccessibility,
+                    actionTitle: accessibilityActionTitle
                 ) {
-                    // Always request so macOS registers the app in the Accessibility list
-                    let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                    _ = AXIsProcessTrustedWithOptions(opts)
-                    if hasShownAccessibilityPrompt {
-                        // Also open Settings directly on subsequent presses
-                        openSystemSettings("Privacy_Accessibility")
+                    guard !isRequestingPermissions else { return }
+                    isRequestingPermissions = true
+                    requestAccessibilityPermission()
+                    refreshPermissions()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        isRequestingPermissions = false
                     }
-                    hasShownAccessibilityPrompt = true
                 }
 
                 permissionRow(
                     icon: "keyboard.fill",
                     title: "Input Monitoring",
                     subtitle: "Listen for your hotkey globally",
-                    granted: hasInputMonitoring
+                    granted: hasInputMonitoring,
+                    actionTitle: inputMonitoringActionTitle
                 ) {
-                    if !hasShownInputMonitoringPrompt {
-                        _ = CGRequestListenEventAccess()
-                        hasShownInputMonitoringPrompt = true
-                        UserDefaults.standard.set(true, forKey: "hasPromptedInputMonitoring")
-                    } else {
-                        openSystemSettings("Privacy_ListenEvent")
+                    guard !isRequestingPermissions else { return }
+                    isRequestingPermissions = true
+                    requestInputMonitoringPermission()
+                    refreshPermissions()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        isRequestingPermissions = false
                     }
                 }
             }
             .padding(.horizontal, 16)
+
+            if isRequestingPermissions {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Waiting for macOS permission dialog…")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if hasShownInputMonitoringPrompt && !hasInputMonitoring {
+                Text("Input Monitoring will turn green automatically once macOS confirms it. This can take a moment after approval.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 380)
+            }
+
+            if !hasAllPermissions {
+                Button("Open Missing in System Settings") {
+                    openFirstMissingPermissionSettings()
+                }
+                .buttonStyle(.bordered)
+                .disabled(isRequestingPermissions)
+            }
 
             Button("Continue") {
                 step = 2
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(!hasMicrophone || !hasAccessibility)
+            .disabled(!hasCorePermissions)
             .padding(.top, 8)
 
-            if !hasMicrophone || !hasAccessibility {
+            if !hasCorePermissions {
                 Text("Grant Microphone and Accessibility to continue")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if !hasInputMonitoring {
+                Text("You can continue now. Input Monitoring will greenify automatically once macOS applies the change.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -185,7 +356,9 @@ struct OnboardingView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            isRequestingPermissions = false
             refreshPermissions()
+            continueGrantAllFlowIfNeeded()
         }
     }
 
@@ -194,6 +367,7 @@ struct OnboardingView: View {
         title: String,
         subtitle: String,
         granted: Bool,
+        actionTitle: String = "Grant",
         action: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 14) {
@@ -217,7 +391,7 @@ struct OnboardingView: View {
                     .font(.title3)
                     .foregroundStyle(.green)
             } else {
-                Button("Grant") { action() }
+                Button(actionTitle) { action() }
                     .controlSize(.small)
             }
         }
@@ -231,7 +405,9 @@ struct OnboardingView: View {
     // MARK: - Step 3: Model Download
 
     private var modelStep: some View {
-        VStack(spacing: 20) {
+        let selectableModels = engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels
+
+        return VStack(spacing: 20) {
             Text("Download Model")
                 .font(.title2.bold())
 
@@ -242,7 +418,7 @@ struct OnboardingView: View {
                 .frame(maxWidth: 380)
 
             Picker("Model", selection: $engine.whisperModel) {
-                ForEach(WhisperModelInfo.all) { model in
+                ForEach(selectableModels) { model in
                     Text("\(model.displayName)  (\(model.sizeLabel))")
                         .tag(model.id)
                 }
@@ -287,6 +463,16 @@ struct OnboardingView: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                     .frame(maxWidth: 320)
+
+                if isModelUnavailableError(error), modelId != engine.recommendedWhisperModelID {
+                    Button("Use Recommended Model") {
+                        engine.whisperModel = engine.recommendedWhisperModelID
+                        modelManager.refreshDownloadStatus()
+                        startModelDownloadIfNeeded()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
             }
 
             Button("Continue") {
@@ -300,18 +486,13 @@ struct OnboardingView: View {
         .padding(32)
         .onAppear {
             modelManager.refreshDownloadStatus()
-            let modelId = engine.whisperModel
-            if !modelManager.downloaded.contains(modelId) && !modelManager.downloading.contains(modelId) {
-                modelManager.download(modelId)
-                downloadStarted = true
-            }
+            ensureSupportedModelSelection()
+            startModelDownloadIfNeeded()
         }
         .onChange(of: engine.whisperModel) {
-            let modelId = engine.whisperModel
             modelManager.refreshDownloadStatus()
-            if !modelManager.downloaded.contains(modelId) && !modelManager.downloading.contains(modelId) {
-                modelManager.download(modelId)
-            }
+            ensureSupportedModelSelection()
+            startModelDownloadIfNeeded()
         }
     }
 
@@ -420,7 +601,153 @@ struct OnboardingView: View {
     }
 
     private func modelDisplayName(_ id: String) -> String {
-        WhisperModelInfo.all.first { $0.id == id }?.displayName ?? id
+        let models = engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels
+        return models.first { $0.id == id }?.displayName
+            ?? WhisperModelInfo.all.first { $0.id == id }?.displayName
+            ?? id
+    }
+
+    private func ensureSupportedModelSelection() {
+        let normalized = WhisperModelInfo.normalizeModelID(engine.whisperModel)
+        if normalized != engine.whisperModel {
+            engine.whisperModel = normalized
+            return
+        }
+
+        let supportedIDs = Set((engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels).map(\.id))
+        if !supportedIDs.contains(engine.whisperModel) {
+            engine.whisperModel = engine.recommendedWhisperModelID
+        }
+    }
+
+    private func startModelDownloadIfNeeded() {
+        let modelId = engine.whisperModel
+        guard !modelManager.downloaded.contains(modelId),
+              !modelManager.downloading.contains(modelId) else {
+            return
+        }
+        modelManager.download(modelId)
+        downloadStarted = true
+    }
+
+    private func isModelUnavailableError(_ error: String) -> Bool {
+        error.localizedCaseInsensitiveContains("No models found matching")
+            || error.localizedCaseInsensitiveContains("models unavailable")
+            || error.localizedCaseInsensitiveContains("Model variant unavailable")
+    }
+
+    private func requestAllPermissions() {
+        guard !isRequestingPermissions else { return }
+        isRequestingPermissions = true
+        pendingGrantAllInputMonitoring = false
+        requestMicrophonePermission(openSettings: false) {
+            refreshPermissions()
+
+            guard hasMicrophone else {
+                openSystemSettings("Privacy_Microphone")
+                isRequestingPermissions = false
+                return
+            }
+
+            requestAccessibilityPermission(openSettings: false)
+            refreshPermissions()
+
+            guard hasAccessibility else {
+                // Avoid stacked prompts: continue with Input Monitoring after user returns.
+                pendingGrantAllInputMonitoring = true
+                openSystemSettings("Privacy_Accessibility")
+                isRequestingPermissions = false
+                return
+            }
+
+            requestInputMonitoringPermission(openSettings: false)
+            refreshPermissions()
+            if !hasInputMonitoring {
+                openSystemSettings("Privacy_ListenEvent")
+            }
+            isRequestingPermissions = false
+        }
+    }
+
+    private func continueGrantAllFlowIfNeeded() {
+        guard pendingGrantAllInputMonitoring else { return }
+
+        if !hasAccessibility {
+            return
+        }
+
+        isRequestingPermissions = true
+        pendingGrantAllInputMonitoring = false
+        requestInputMonitoringPermission(openSettings: false)
+        refreshPermissions()
+        if !hasInputMonitoring {
+            openSystemSettings("Privacy_ListenEvent")
+        }
+        isRequestingPermissions = false
+    }
+
+    private func requestMicrophonePermission(openSettings: Bool = true, completion: (() -> Void)? = nil) {
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        switch status {
+        case .authorized:
+            hasMicrophone = true
+            completion?()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                Task { @MainActor in
+                    hasMicrophone = granted
+                    if !granted && openSettings {
+                        openSystemSettings("Privacy_Microphone")
+                    }
+                    completion?()
+                }
+            }
+        case .denied, .restricted:
+            hasMicrophone = false
+            if openSettings {
+                openSystemSettings("Privacy_Microphone")
+            }
+            completion?()
+        @unknown default:
+            hasMicrophone = false
+            completion?()
+        }
+    }
+
+    private func requestAccessibilityPermission(openSettings: Bool = true) {
+        // Request so macOS registers the app in Accessibility.
+        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(opts)
+        hasShownAccessibilityPrompt = true
+        hasAccessibility = trusted
+        engine.hasAccessibility = trusted
+        if !trusted && openSettings {
+            openSystemSettings("Privacy_Accessibility")
+        }
+    }
+
+    private func requestInputMonitoringPermission(openSettings: Bool = true) {
+        let requestGranted = CGRequestListenEventAccess()
+        hasShownInputMonitoringPrompt = true
+        UserDefaults.standard.set(true, forKey: "hasPromptedInputMonitoring")
+        hasInputMonitoring = requestGranted || CGPreflightListenEventAccess()
+        if !hasInputMonitoring && openSettings {
+            openSystemSettings("Privacy_ListenEvent")
+        }
+    }
+
+    private func openFirstMissingPermissionSettings() {
+        if !hasAccessibility {
+            openSystemSettings("Privacy_Accessibility")
+            return
+        }
+        if !hasInputMonitoring {
+            openSystemSettings("Privacy_ListenEvent")
+            return
+        }
+        if !hasMicrophone {
+            openSystemSettings("Privacy_Microphone")
+        }
     }
 
     private func refreshPermissions() {

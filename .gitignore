@@ -16,6 +16,7 @@ Package.resolved
 
 # App artifacts
 *.app/
+dist/
 
 # Secrets
 .env
@@ -23,4 +24,3 @@ Package.resolved
 # Local
 attic/
 .claude/
-

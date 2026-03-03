@@ -42,45 +42,23 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
       - name: Build
-        run: swift build -c release
-
-      - name: Bundle and sign app
         env:
           SIGNING_IDENTITY: ${{ secrets.DEVELOPER_ID_SIGNING_IDENTITY }}
-        run: |
-          mkdir -p .build/HoldToTalk.app/Contents/MacOS
-          mkdir -p .build/HoldToTalk.app/Contents/Resources
-          cp .build/release/HoldToTalk .build/HoldToTalk.app/Contents/MacOS/
-          cp Resources/Info.plist .build/HoldToTalk.app/Contents/
-          cp Resources/HoldToTalk.icns .build/HoldToTalk.app/Contents/Resources/
-          codesign --force --options runtime --timestamp \
-            -s "$SIGNING_IDENTITY" \
-            --entitlements Resources/HoldToTalk.entitlements \
-            .build/HoldToTalk.app
-          codesign --verify --verbose .build/HoldToTalk.app
-
-      - name: Notarize app
-        timeout-minutes: 30
-        env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          cd .build && zip -r HoldToTalk.zip HoldToTalk.app && cd ..
-          xcrun notarytool submit .build/HoldToTalk.zip \
-            --apple-id "$APPLE_ID" \
-            --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --wait --timeout 20m
-          xcrun stapler staple .build/HoldToTalk.app
+          make release
 
-      - name: Create release zip
-        run: cd .build && zip -r HoldToTalk-${{ github.ref_name }}.zip HoldToTalk.app
+      - name: Verify release artifacts
+        run: ls -lah dist
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: .build/HoldToTalk-${{ github.ref_name }}.zip
+          files: |
+            dist/HoldToTalk-v*.zip
+            dist/HoldToTalk-v*.dmg
           generate_release_notes: true
 
       - name: Update Homebrew tap
@@ -88,7 +66,8 @@ jobs:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          SHA256=$(shasum -a 256 .build/HoldToTalk-${GITHUB_REF_NAME}.zip | awk '{print $1}')
+          ZIP_PATH="dist/HoldToTalk-v${VERSION}.zip"
+          SHA256=$(shasum -a 256 "$ZIP_PATH" | awk '{print $1}')
 
           git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/jxucoder/homebrew-tap.git /tmp/homebrew-tap
           mkdir -p /tmp/homebrew-tap/Casks
@@ -101,3 +80,54 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "Update holdtotalk to $VERSION" || true
           git push
+
+      - name: Download Sparkle tools
+        run: |
+          curl -sL "https://github.com/sparkle-project/Sparkle/releases/download/2.9.0/Sparkle-2.9.0.tar.xz" -o "$RUNNER_TEMP/sparkle.tar.xz"
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+
+      - name: Generate Sparkle appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ZIP_PATH="dist/HoldToTalk-v${VERSION}.zip"
+          DOWNLOAD_URL="https://github.com/jxucoder/holdtotalk/releases/download/$GITHUB_REF_NAME/HoldToTalk-v${VERSION}.zip"
+          SIGN_UPDATE="$RUNNER_TEMP/sparkle/bin/sign_update"
+
+          LENGTH=$(stat -f%z "$ZIP_PATH")
+          SIG_ATTR=$(echo "$SPARKLE_PRIVATE_KEY" | "$SIGN_UPDATE" "$ZIP_PATH" --ed-key-file - | grep -o 'sparkle:edSignature="[^"]*"')
+          PUBDATE=$(date -R)
+
+          cat > "$RUNNER_TEMP/appcast.xml" <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <channel>
+              <title>Hold to Talk</title>
+              <link>https://jxucoder.github.io/holdtotalk/appcast.xml</link>
+              <item>
+                <title>Version ${VERSION}</title>
+                <pubDate>${PUBDATE}</pubDate>
+                <sparkle:version>${VERSION}</sparkle:version>
+                <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+                <enclosure url="${DOWNLOAD_URL}" length="${LENGTH}" type="application/octet-stream" ${SIG_ATTR} />
+              </item>
+            </channel>
+          </rss>
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          cp "$RUNNER_TEMP/appcast.xml" docs/appcast.xml
+          git add docs/appcast.xml
+          git commit -m "Update appcast.xml for $GITHUB_REF_NAME" || true
+          git push origin main
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" 2>/dev/null || true

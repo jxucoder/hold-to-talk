@@ -21,7 +21,7 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 
 ### Download pre-built binary
 
-Grab the latest `.app` from [GitHub Releases](https://github.com/jxucoder/holdtotalk/releases), move it to `/Applications`, and open it. macOS will prompt for Microphone and Accessibility permissions on first launch.
+Grab the latest notarized `DMG` or `ZIP` from [GitHub Releases](https://github.com/jxucoder/holdtotalk/releases), install `HoldToTalk.app` into `/Applications`, and open it.
 
 ### Homebrew
 
@@ -37,10 +37,25 @@ Requires Xcode command line tools.
 git clone https://github.com/jxucoder/holdtotalk.git
 cd holdtotalk
 make build
+make install   # installs HoldToTalk.app to /Applications
 make run
 ```
 
 Or open `Package.swift` in Xcode and run.
+
+### Packaging (signed release)
+
+```bash
+# Local packaging (ad-hoc signed): creates dist/HoldToTalk-v<version>.zip + .dmg
+make package
+
+# Production release (Developer ID + notarization + stapling): creates notarized zip + dmg
+SIGNING_IDENTITY="Developer ID Application: <Your Name> (<TEAMID>)" \
+APPLE_ID="<apple-id-email>" \
+APPLE_TEAM_ID="<team-id>" \
+APPLE_APP_PASSWORD="<app-specific-password>" \
+make release
+```
 
 ## Usage
 
@@ -56,7 +71,8 @@ Open via menu bar → Settings:
 | Setting | Default | Options |
 |---|---|---|
 | Launch at Login | off | Toggle on/off |
-| Whisper model | `large-v3-turbo` | `tiny.en`, `tiny`, `base.en`, `base`, `small.en`, `small`, `medium.en`, `medium`, `large-v3-turbo`, `large-v3` |
+| Transcription profile | `balanced` | `fast`, `balanced`, `best` |
+| Whisper model | device-recommended | `tiny.en`, `tiny`, `base.en`, `base`, `small.en`, `small`, `medium.en`, `medium`, `large-v3_turbo`, `large-v3-v20240930`, `large-v3-v20240930_turbo`, `large-v3` |
 | Hotkey | `ctrl` | `ctrl`, `option`, `shift`, `fn`, `right_option` |
 | Cleanup | on | Toggle on/off — uses Apple Intelligence (macOS 26+) |
 | Cleanup prompt | (default) | Customizable instructions for how Apple Intelligence cleans up transcriptions |
@@ -84,6 +100,9 @@ One external dependency: [WhisperKit](https://github.com/argmaxinc/WhisperKit). 
 macOS will prompt for:
 - **Microphone** — required for recording
 - **Accessibility** — required for global hotkey and paste simulation
+- **Input Monitoring** — required for reliable global key listening
+
+Detailed guide: [Permission System Notes](docs/permissions.md)
 
 ## Contributing
 
