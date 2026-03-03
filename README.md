@@ -9,6 +9,7 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 - **Fully private** — powered by [WhisperKit](https://github.com/argmaxinc/WhisperKit), transcription runs entirely on Apple Silicon via Core ML. No cloud, no accounts, no network calls.
 - **Works everywhere** — dictate into any app: Slack, Notes, your IDE, email, browser — anywhere you can type.
 - **Apple Intelligence cleanup** (optional) — on-device grammar and filler-word removal. Customizable prompt. Requires macOS 26+.
+- **Auto-updates** — built-in update checking via [Sparkle](https://sparkle-project.org).
 - **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
 
 <p align="center">
@@ -19,9 +20,13 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 
 **Requirements:** macOS 15+, Apple Silicon.
 
+### Mac App Store
+
+[![Download on the Mac App Store](https://developer.apple.com/assets/elements/badges/download-on-the-mac-app-store.svg)](https://apps.apple.com/app/hold-to-talk/id6744136857)
+
 ### Download pre-built binary
 
-Grab the latest notarized `DMG` or `ZIP` from [GitHub Releases](https://github.com/jxucoder/holdtotalk/releases), install `HoldToTalk.app` into `/Applications`, and open it.
+Grab the latest notarized `DMG` or `ZIP` from [GitHub Releases](https://github.com/jxucoder/hold-to-talk/releases), install `HoldToTalk.app` into `/Applications`, and open it.
 
 ### Homebrew
 
@@ -34,8 +39,8 @@ brew install jxucoder/tap/holdtotalk
 Requires Xcode command line tools.
 
 ```bash
-git clone https://github.com/jxucoder/holdtotalk.git
-cd holdtotalk
+git clone https://github.com/jxucoder/hold-to-talk.git
+cd hold-to-talk
 make build
 make install   # installs HoldToTalk.app to /Applications
 make run
@@ -93,7 +98,7 @@ OnboardingView         Guided setup flow for first launch
 SettingsView           SwiftUI settings form
 ```
 
-One external dependency: [WhisperKit](https://github.com/argmaxinc/WhisperKit). No network calls — everything runs locally.
+Dependencies: [WhisperKit](https://github.com/argmaxinc/WhisperKit) (transcription) and [Sparkle](https://sparkle-project.org) (auto-updates). No network calls for transcription — everything runs locally.
 
 ## Permissions
 

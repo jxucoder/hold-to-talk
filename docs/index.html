@@ -180,7 +180,7 @@
 
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 20px;
     }
 
@@ -317,7 +317,7 @@
     @media (max-width: 640px) {
       .hero h1 { font-size: 32px; }
       .hero .subtitle { font-size: 17px; }
-      .features-grid { grid-template-columns: 1fr; }
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
       .steps { flex-direction: column; align-items: center; }
     }
   </style>
@@ -331,8 +331,8 @@
       Hold to Talk
     </a>
     <div class="links">
-      <a href="https://github.com/jxucoder/holdtotalk">GitHub</a>
-      <a href="https://github.com/jxucoder/holdtotalk/releases/latest">Download</a>
+      <a href="https://github.com/jxucoder/hold-to-talk">GitHub</a>
+      <a href="https://github.com/jxucoder/hold-to-talk/releases/latest">Download</a>
     </div>
   </div>
 </nav>
@@ -342,10 +342,15 @@
     <img src="logo.png" alt="Hold to Talk" class="app-icon">
     <h1>Voice dictation for macOS</h1>
     <p class="subtitle">Hold a key, speak, release — your words appear wherever your cursor is. Fully private. Nothing ever leaves your Mac.</p>
-    <a href="https://github.com/jxucoder/holdtotalk/releases/latest" class="cta">
+    <a href="https://github.com/jxucoder/hold-to-talk/releases/latest" class="cta">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Download for Mac
     </a>
+    <p class="requirement" style="margin-top: 16px;">
+      <a href="https://apps.apple.com/app/hold-to-talk/id6744136857" style="color: var(--text-secondary); text-decoration: underline;">Also on the Mac App Store</a>
+      &nbsp;&middot;&nbsp;
+      <span style="font-family: 'SF Mono', Menlo, monospace;">brew install jxucoder/tap/holdtotalk</span>
+    </p>
     <p class="requirement">Requires macOS 14+, Apple Silicon</p>
   </div>
 </section>
@@ -380,6 +385,16 @@
         <h3>Stays out of your way</h3>
         <p>Lives in your menu bar. Hold a key to record, release to paste. No windows to manage, no workflow to learn.</p>
       </div>
+      <div class="feature-card">
+        <div class="icon">&#x1f504;</div>
+        <h3>Auto-updates</h3>
+        <p>Built-in update checking via Sparkle. Get new features and fixes automatically, or check manually from Settings.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#x1f4e6;</div>
+        <h3>Install your way</h3>
+        <p>Download directly, install via Homebrew, or get it from the Mac App Store. Your choice.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -412,8 +427,8 @@
     <h2>Open source</h2>
     <p>Build from source in three commands.</p>
     <code>
-      git clone https://github.com/jxucoder/holdtotalk.git<br>
-      cd holdtotalk<br>
+      git clone https://github.com/jxucoder/hold-to-talk.git<br>
+      cd hold-to-talk<br>
       make build && make run
     </code>
   </div>
@@ -422,10 +437,10 @@
 <footer>
   <div class="container">
     <div class="links">
-      <a href="https://github.com/jxucoder/holdtotalk">GitHub</a>
-      <a href="https://github.com/jxucoder/holdtotalk/releases/latest">Releases</a>
-      <a href="https://github.com/jxucoder/holdtotalk/blob/main/LICENSE">Apache 2.0</a>
-      <a href="https://github.com/jxucoder/holdtotalk/blob/main/PRIVACY.md">Privacy</a>
+      <a href="https://github.com/jxucoder/hold-to-talk">GitHub</a>
+      <a href="https://github.com/jxucoder/hold-to-talk/releases/latest">Releases</a>
+      <a href="https://github.com/jxucoder/hold-to-talk/blob/main/LICENSE">Apache 2.0</a>
+      <a href="https://github.com/jxucoder/hold-to-talk/blob/main/PRIVACY.md">Privacy</a>
     </div>
     <p>Hold to Talk is free and open-source software.</p>
   </div>
