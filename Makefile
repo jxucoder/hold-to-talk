@@ -17,17 +17,23 @@ DMG_PATH := $(DIST_DIR)/$(DMG_NAME)
 DMG_STAGING := .build/dmg-staging
 NOTARY_TMP_ZIP := .build/$(APP_NAME)-notary.zip
 
+SPARKLE_FRAMEWORK := $(shell swift build -c release --show-bin-path)/Sparkle.framework
+
 build:
 	swift build -c release
 	@mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
 	@mkdir -p "$(APP_BUNDLE)/Contents/Resources"
+	@mkdir -p "$(APP_BUNDLE)/Contents/Frameworks"
 	@cp ".build/release/$(APP_NAME)" "$(APP_BUNDLE)/Contents/MacOS/"
 	@cp Resources/Info.plist "$(APP_BUNDLE)/Contents/"
 	@cp Resources/HoldToTalk.icns "$(APP_BUNDLE)/Contents/Resources/"
 	@cp Resources/PrivacyInfo.xcprivacy "$(APP_BUNDLE)/Contents/Resources/"
+	@rsync -a --delete "$(SPARKLE_FRAMEWORK)" "$(APP_BUNDLE)/Contents/Frameworks/"
 	@if [ "$(SIGNING_IDENTITY)" = "-" ]; then \
+		codesign -f -s - "$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework"; \
 		codesign -f -s - --entitlements Resources/HoldToTalk.dev.entitlements "$(APP_BUNDLE)"; \
 	else \
+		codesign -f --options runtime --timestamp -s "$(SIGNING_IDENTITY)" "$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework"; \
 		codesign -f --options runtime --timestamp -s "$(SIGNING_IDENTITY)" --entitlements Resources/HoldToTalk.entitlements "$(APP_BUNDLE)"; \
 	fi
 	@echo "Built $(APP_BUNDLE)"
