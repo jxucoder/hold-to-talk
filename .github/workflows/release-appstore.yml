@@ -58,17 +58,25 @@ jobs:
         run: |
           swift build -c release
 
+          SPARKLE_FW="$(swift build -c release --show-bin-path)/Sparkle.framework"
+
           mkdir -p "$APP_BUNDLE/Contents/MacOS"
           mkdir -p "$APP_BUNDLE/Contents/Resources"
+          mkdir -p "$APP_BUNDLE/Contents/Frameworks"
           cp ".build/release/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
           cp Resources/Info.plist "$APP_BUNDLE/Contents/"
           cp Resources/HoldToTalk.icns "$APP_BUNDLE/Contents/Resources/"
           cp Resources/PrivacyInfo.xcprivacy "$APP_BUNDLE/Contents/Resources/"
+          rsync -a --delete "$SPARKLE_FW" "$APP_BUNDLE/Contents/Frameworks/"
 
       - name: Sign for App Store
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          codesign -f --options runtime --timestamp \
+            -s "Apple Distribution: Jiarui Xu ($APPLE_TEAM_ID)" \
+            "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+
           codesign -f --options runtime --timestamp \
             -s "Apple Distribution: Jiarui Xu ($APPLE_TEAM_ID)" \
             --entitlements Resources/HoldToTalk.entitlements \
