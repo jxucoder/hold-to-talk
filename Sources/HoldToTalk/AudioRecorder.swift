@@ -46,7 +46,9 @@ final class AudioRecorder: @unchecked Sendable {
     func stop() -> [Float] {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
-        // Re-prepare so the next start() is fast again
+        // Re-prepare so the next start() is fast again.
+        // Calls AVAudioEngine.prepare() directly — intentionally bypasses AudioRecorder.prepare()'s
+        // isPrepared guard so the engine is re-warmed on every stop, keeping it hot-standby.
         engine.prepare()
 
         lock.lock()

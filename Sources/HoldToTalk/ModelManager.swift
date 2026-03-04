@@ -155,6 +155,9 @@ final class ModelManager: ObservableObject {
 
     // Fix #3: non-async; spawns a tracked task internally so it can be cancelled
     func download(_ modelId: String) {
+        // Normalize up-front so all state keys (downloading, downloaded, downloadProgress, etc.)
+        // are stored under the canonical ID, avoiding raw-vs-normalized mismatches.
+        let modelId = WhisperModelInfo.normalizeModelID(modelId)
         guard !downloading.contains(modelId) else { return }
         downloading.insert(modelId)
         downloadProgress[modelId] = 0
@@ -163,9 +166,8 @@ final class ModelManager: ObservableObject {
         let task = Task { [weak self] in
             guard let self else { return }
             do {
-                let normalizedID = WhisperModelInfo.normalizeModelID(modelId)
                 _ = try await WhisperKit.download(
-                    variant: normalizedID,
+                    variant: modelId,   // already normalized
                     downloadBase: Self.modelBase
                 ) { [weak self] progress in
                     Task { @MainActor [weak self] in
@@ -173,17 +175,21 @@ final class ModelManager: ObservableObject {
                     }
                 }
                 if !Task.isCancelled {
-                    downloaded.insert(normalizedID)
+                    await MainActor.run { self.downloaded.insert(modelId) }
                 }
             } catch {
                 if !Task.isCancelled {
-                    downloadErrors[modelId] = userFacingDownloadError(error)
+                    await MainActor.run {
+                        self.downloadErrors[modelId] = self.userFacingDownloadError(error)
+                    }
                     print("[modelmanager] Download failed for \(modelId): \(error)")
                 }
             }
-            downloading.remove(modelId)
-            downloadProgress.removeValue(forKey: modelId)
-            downloadTasks.removeValue(forKey: modelId)
+            await MainActor.run {
+                self.downloading.remove(modelId)
+                self.downloadProgress.removeValue(forKey: modelId)
+                self.downloadTasks.removeValue(forKey: modelId)
+            }
         }
         downloadTasks[modelId] = task
     }

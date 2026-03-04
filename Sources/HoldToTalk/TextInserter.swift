@@ -425,7 +425,8 @@ enum TextInserter {
         keyUp.post(tap: .cgAnnotatedSessionEventTap)
 
         // Allow the paste to land before restoring the clipboard.
-        usleep(200_000)
+        // 400ms gives even heavily loaded systems enough time to process the CMD+V event.
+        usleep(400_000)
         restoreClipboard(pasteboard, items: savedItems)
         return true
     }

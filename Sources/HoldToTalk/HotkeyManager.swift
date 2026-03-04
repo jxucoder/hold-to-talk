@@ -10,6 +10,9 @@ final class HotkeyManager {
             case .ctrl:        return .control
             case .option:      return .option
             case .shift:       return .shift
+            // ⚠ fn key: Apple changed fn handling in macOS 14 (Sonoma) — the fn key now often
+            // fires character events (e.g. fn+E = emoji picker) rather than flagsChanged events,
+            // so hold-to-talk via fn may be unreliable on Sonoma and later.
             case .fn:          return .function
             // Fix #4: rightOption shares the .option flag; we distinguish via keyCode in handle()
             case .rightOption: return .option

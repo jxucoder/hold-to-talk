@@ -74,12 +74,28 @@ jobs:
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          codesign -f --deep --options runtime --timestamp \
-            -s "Apple Distribution: Jiarui Xu ($APPLE_TEAM_ID)" \
+          IDENTITY="Apple Distribution: Jiarui Xu ($APPLE_TEAM_ID)"
+          SPARKLE_DIR="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B"
+
+          for binary in \
+            "$SPARKLE_DIR/XPCServices/Downloader.xpc" \
+            "$SPARKLE_DIR/XPCServices/Installer.xpc" \
+            "$SPARKLE_DIR/Updater.app" \
+            "$SPARKLE_DIR/Autoupdate" \
+            "$SPARKLE_DIR/Sparkle"; do
+            codesign -f --options runtime --timestamp \
+              -s "$IDENTITY" \
+              --entitlements Resources/Sparkle.entitlements \
+              "$binary"
+          done
+
+          codesign -f --options runtime --timestamp \
+            -s "$IDENTITY" \
+            --entitlements Resources/Sparkle.entitlements \
             "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 
           codesign -f --options runtime --timestamp \
-            -s "Apple Distribution: Jiarui Xu ($APPLE_TEAM_ID)" \
+            -s "$IDENTITY" \
             --entitlements Resources/HoldToTalk.entitlements \
             "$APP_BUNDLE"
 

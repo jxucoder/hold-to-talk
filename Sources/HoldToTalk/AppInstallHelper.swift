@@ -34,7 +34,18 @@ func installToApplicationsAndRelaunch() -> AppInstallOutcome {
             }
             try fileManager.copyItem(at: sourceURL, to: destination)
 
-            NSWorkspace.shared.open(destination)
+            // Only terminate if the new instance actually launches.
+            // If open() fails (e.g. Gatekeeper quarantine), stay alive so the user sees an error
+            // rather than the app silently disappearing.
+            guard NSWorkspace.shared.open(destination) else {
+                lastError = NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: NSFileWriteNoPermissionError,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "Copied to \(destination.path) but could not launch — check Gatekeeper settings."]
+                )
+                continue
+            }
             NSApp.terminate(nil)
             return .success(destination: destination)
         } catch {

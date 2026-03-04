@@ -492,7 +492,9 @@ struct OnboardingView: View {
         .onChange(of: engine.whisperModel) {
             modelManager.refreshDownloadStatus()
             ensureSupportedModelSelection()
-            startModelDownloadIfNeeded()
+            // Do NOT auto-download on model selection change — the user should explicitly
+            // press "Download" for the new selection. Auto-downloading on every picker
+            // change wastes bandwidth if the user is browsing options on a metered connection.
         }
     }
 
@@ -751,19 +753,12 @@ struct OnboardingView: View {
     }
 
     private func refreshPermissions() {
-        #if DEBUG
-        if DebugFlags.skipPermissions {
-            hasMicrophone = true
-            hasAccessibility = true
-            hasInputMonitoring = true
-            engine.hasAccessibility = true
-            return
-        }
-        #endif
-        hasMicrophone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        hasAccessibility = AXIsProcessTrusted()
-        hasInputMonitoring = CGPreflightListenEventAccess()
-        engine.hasAccessibility = hasAccessibility
+        // Delegate to the engine — single source of truth for permission state.
+        // Mirror the results into local @State vars that drive this view's UI.
+        engine.refreshPermissionSnapshot()
+        hasMicrophone = engine.hasMicrophone
+        hasAccessibility = engine.hasAccessibility
+        hasInputMonitoring = engine.hasInputMonitoring
     }
 
     // openSystemSettings is now a shared top-level function in SystemSettingsHelper.swift

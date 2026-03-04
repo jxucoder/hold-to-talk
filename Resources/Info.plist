@@ -20,6 +20,8 @@
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Hold to Talk needs microphone access for voice dictation.</string>
     <key>NSAccessibilityUsageDescription</key>

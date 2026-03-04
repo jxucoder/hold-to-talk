@@ -22,6 +22,8 @@ final class RecordingHUD {
     private var panel: HUDPanel?
     private let model = HUDModel()
     private static let size = CGSize(width: 200, height: 52)
+    /// True while an animateOut() is in flight; cleared on completion or when interrupted by a new show request.
+    private var isAnimatingOut = false
 
     private init() {}
 
@@ -31,6 +33,18 @@ final class RecordingHUD {
 
         if state == .idle {
             animateOut()
+        } else if isAnimatingOut {
+            // Interrupted: a new active state arrived while the dismiss animation is running.
+            // Cancel the out-animation by snapping alpha back and restarting from current position.
+            isAnimatingOut = false
+            if let panel {
+                NSAnimationContext.runAnimationGroup { ctx in
+                    ctx.duration = 0
+                    panel.animator().alphaValue = 1
+                }
+            }
+            ensurePanel()
+            animateIn()
         } else if !wasVisible {
             ensurePanel()
             animateIn()
@@ -101,6 +115,7 @@ final class RecordingHUD {
     private func animateOut() {
         guard let panel, panel.isVisible else { return }
         let origin = panel.frame.origin
+        isAnimatingOut = true
 
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.2
@@ -110,6 +125,9 @@ final class RecordingHUD {
         }, completionHandler: { [weak self, weak panel] in
             panel?.orderOut(nil)
             MainActor.assumeIsolated {
+                // Only clear the panel if the animation wasn't interrupted by a new show request.
+                guard self?.isAnimatingOut == true else { return }
+                self?.isAnimatingOut = false
                 self?.panel = nil
             }
         })

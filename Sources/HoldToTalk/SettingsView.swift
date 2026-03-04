@@ -359,17 +359,8 @@ struct SettingsView: View {
     }
 
     private func refreshPermissionSnapshot() {
-        #if DEBUG
-        if DebugFlags.skipPermissions {
-            engine.hasMicrophone = true
-            engine.hasAccessibility = true
-            engine.hasInputMonitoring = true
-            return
-        }
-        #endif
-        engine.hasMicrophone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        engine.hasAccessibility = AXIsProcessTrusted()
-        engine.hasInputMonitoring = CGPreflightListenEventAccess()
+        // Delegate to the engine — single source of truth for permission state.
+        engine.refreshPermissionSnapshot()
     }
 
     private func runGuidedEnvironmentFix() {

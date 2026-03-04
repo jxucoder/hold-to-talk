@@ -282,7 +282,9 @@ final class DictationEngine: ObservableObject {
             debugLog("[holdtotalk] Raw: \(raw)")
 
             var finalText = raw
-            if cleanupEnabled {
+            // Only enter .cleaning state when Apple Intelligence is actually available;
+            // otherwise cleanup() is a no-op and the state flash is misleading.
+            if cleanupEnabled && TextProcessor.isAvailable {
                 state = .cleaning
                 let cleaned = try await TextProcessor(prompt: cleanupPrompt).cleanup(raw)
                 if cleaned != raw {
@@ -296,11 +298,21 @@ final class DictationEngine: ObservableObject {
             // 80ms is sufficient for app activation; reduced from 180ms for snappier feel.
             reactivateRecordingTargetAppIfNeeded()
             try? await Task.sleep(nanoseconds: 80_000_000)
-            let report = TextInserter.insert(
-                finalText + " ",
-                targetBundleID: recordingTargetBundleID,
-                targetPID: recordingTargetAppPID
-            )
+            // Capture target info into locals before the async gap so the stored properties
+            // can be cleared at the end of this function without a race.
+            let insertText = finalText + " "
+            let insertBundleID = recordingTargetBundleID
+            let insertPID = recordingTargetAppPID
+            // TextInserter.insert() is synchronous and may call usleep() per character in typing
+            // profiles (e.g. 2ms × 3000 chars ≈ 6s for long dictation in Cursor/Slack/VSCode).
+            // Run it off the main actor so the HUD and all animations remain responsive.
+            let report = await Task.detached(priority: .userInitiated) {
+                TextInserter.insert(
+                    insertText,
+                    targetBundleID: insertBundleID,
+                    targetPID: insertPID
+                )
+            }.value
             if report.success {
                 lastInsertDebug = report.summary
                 debugLog("[holdtotalk] Inserted via \(report.method ?? "unknown").")
@@ -349,7 +361,9 @@ final class DictationEngine: ObservableObject {
         app.activate()
     }
 
-    private func refreshPermissionSnapshot() {
+    /// Reads current macOS permission state into the engine's published properties.
+    /// Internal so views can call this directly instead of duplicating the logic.
+    func refreshPermissionSnapshot() {
         #if DEBUG
         if DebugFlags.skipPermissions {
             hasMicrophone = true
