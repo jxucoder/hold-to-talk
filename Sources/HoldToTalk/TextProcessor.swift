@@ -28,10 +28,26 @@ struct TextProcessor {
     private static func userMessage(_ raw: String) -> String {
         """
         Clean up this transcription. Return ONLY the corrected text, no explanation.
-        <transcription>
+
         \(raw)
-        </transcription>
         """
+    }
+
+    private static func stripLeakedTags(_ text: String) -> String {
+        var result = text
+        let patterns = [
+            #"</?transcription>"#,
+            #"</?model>"#,
+            #"/model"#,
+        ]
+        for pattern in patterns {
+            result = result.replacingOccurrences(
+                of: pattern,
+                with: "",
+                options: .regularExpression
+            )
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func cleanup(_ raw: String) async throws -> String {
@@ -47,7 +63,8 @@ struct TextProcessor {
                 : prompt
             let session = LanguageModelSession(instructions: instructions)
             let response = try await session.respond(to: Self.userMessage(raw))
-            return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleaned = Self.stripLeakedTags(response.content)
+            return cleaned.isEmpty ? raw : cleaned
         }
         #endif
         print("[cleanup] Apple Intelligence not supported on this OS version")
