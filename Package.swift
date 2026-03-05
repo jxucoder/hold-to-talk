@@ -15,5 +15,10 @@ let package = Package(
             path: "Sources/HoldToTalk",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        .testTarget(
+            name: "HoldToTalkTests",
+            dependencies: ["HoldToTalk"],
+            path: "Tests/HoldToTalkTests"
+        ),
     ]
 )

@@ -10,6 +10,7 @@ final class AudioRecorder: @unchecked Sendable {
     private var buffers: [AVAudioPCMBuffer] = []
     private let lock = NSLock()
     private var isPrepared = false
+    private var tapInstalled = false
 
     /// Pre-warms the audio engine so subsequent start() calls are near-instant.
     /// Call once at app startup. Safe to call multiple times.
@@ -39,12 +40,22 @@ final class AudioRecorder: @unchecked Sendable {
             self.buffers.append(copied)
             self.lock.unlock()
         }
+        tapInstalled = true
 
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            tapInstalled = false
+            throw error
+        }
     }
 
     func stop() -> [Float] {
-        engine.inputNode.removeTap(onBus: 0)
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
         engine.stop()
         // Re-prepare so the next start() is fast again.
         // Calls AVAudioEngine.prepare() directly — intentionally bypasses AudioRecorder.prepare()'s

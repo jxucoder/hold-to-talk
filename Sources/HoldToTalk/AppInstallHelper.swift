@@ -6,27 +6,40 @@ enum AppInstallOutcome {
     case failure(message: String)
 }
 
-func isInstalledInApplicationsFolder() -> Bool {
-    let appPath = Bundle.main.bundleURL.standardizedFileURL.path
-    return appPath.hasPrefix("/Applications/")
+func isInstalledInApplicationsFolder(
+    appURL: URL = Bundle.main.bundleURL,
+    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+) -> Bool {
+    let installParent = canonicalURL(appURL).deletingLastPathComponent()
+    return installBaseDirectories(homeDirectory: homeDirectory).contains {
+        canonicalURL($0) == installParent
+    }
 }
 
 /// Attempts to install the current app bundle into /Applications and relaunch.
 /// Falls back to ~/Applications if /Applications is not writable.
 @MainActor
-func installToApplicationsAndRelaunch() -> AppInstallOutcome {
+func installToApplicationsAndRelaunch(
+    appURL: URL = Bundle.main.bundleURL,
+    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+) -> AppInstallOutcome {
     let fileManager = FileManager.default
-    let sourceURL = Bundle.main.bundleURL.standardizedFileURL
+    let sourceURL = canonicalURL(appURL)
     let appName = sourceURL.lastPathComponent
 
-    let destinations = [
-        URL(fileURLWithPath: "/Applications", isDirectory: true),
-        fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true),
-    ]
+    let destinations = installBaseDirectories(homeDirectory: homeDirectory)
+
+    // Already installed in one of the supported Application folders.
+    for base in destinations {
+        let destination = canonicalURL(base.appendingPathComponent(appName, isDirectory: true))
+        if sourceURL == destination {
+            return .success(destination: destination)
+        }
+    }
 
     var lastError: Error?
     for base in destinations {
-        let destination = base.appendingPathComponent(appName, isDirectory: true)
+        let destination = canonicalURL(base.appendingPathComponent(appName, isDirectory: true))
         do {
             try fileManager.createDirectory(at: base, withIntermediateDirectories: true)
             if fileManager.fileExists(atPath: destination.path) {
@@ -57,4 +70,17 @@ func installToApplicationsAndRelaunch() -> AppInstallOutcome {
     return .failure(
         message: "Could not install automatically (\(detail)). Move HoldToTalk.app to /Applications manually."
     )
+}
+
+func installBaseDirectories(
+    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+) -> [URL] {
+    [
+        URL(fileURLWithPath: "/Applications", isDirectory: true),
+        homeDirectory.appendingPathComponent("Applications", isDirectory: true),
+    ]
+}
+
+private func canonicalURL(_ url: URL) -> URL {
+    url.resolvingSymlinksInPath().standardizedFileURL
 }

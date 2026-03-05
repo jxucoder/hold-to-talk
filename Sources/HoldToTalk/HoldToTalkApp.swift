@@ -17,11 +17,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !isInstalledInApplicationsFolder() && !UserDefaults.standard.bool(forKey: "dismissedInstallPrompt") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                self.showInstallPrompt()
+                Task { @MainActor in
+                    self.showInstallPrompt()
+                }
             }
         }
     }
 
+    @MainActor
     private func showInstallPrompt() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
@@ -62,7 +65,6 @@ struct HoldToTalkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var engine = DictationEngine()
     @Environment(\.openWindow) private var openWindow
-    @State private var installErrorMessage: String?
     private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     private var shouldShowOnboarding: Bool {
