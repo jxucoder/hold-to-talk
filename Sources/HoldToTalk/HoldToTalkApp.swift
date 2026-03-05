@@ -14,6 +14,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("[debug] Onboarding state reset.")
         }
         #endif
+
+        if !isInstalledInApplicationsFolder() && !UserDefaults.standard.bool(forKey: "dismissedInstallPrompt") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                self.showInstallPrompt()
+            }
+        }
+    }
+
+    private func showInstallPrompt() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Move to Applications?"
+        alert.informativeText = "Hold to Talk works best when installed in /Applications. Permissions and Launch at Login require it.\n\nWould you like to move it now?"
+        alert.alertStyle = .informational
+        if let icon = HoldToTalkApp.appIcon {
+            alert.icon = icon
+        }
+        alert.addButton(withTitle: "Move to Applications")
+        alert.addButton(withTitle: "Not Now")
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = "Don't ask again"
+
+        let response = alert.runModal()
+
+        if alert.suppressionButton?.state == .on {
+            UserDefaults.standard.set(true, forKey: "dismissedInstallPrompt")
+        }
+
+        if response == .alertFirstButtonReturn {
+            switch installToApplicationsAndRelaunch() {
+            case .success:
+                break
+            case .failure(let message):
+                let errorAlert = NSAlert()
+                errorAlert.messageText = "Could Not Move App"
+                errorAlert.informativeText = message
+                errorAlert.alertStyle = .warning
+                errorAlert.runModal()
+            }
+        }
     }
 }
 
@@ -42,30 +82,12 @@ struct HoldToTalkApp: App {
                 label
 
                 if !isInstalledInApplicationsFolder() {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.down.app.fill")
-                            .foregroundStyle(.orange)
-                        Text("Install in /Applications recommended")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-                    Button("Install to Applications…") {
-                        installErrorMessage = nil
-                        switch installToApplicationsAndRelaunch() {
-                        case .success:
-                            break  // app relaunches and exits current process
-                        case .failure(let message):
-                            installErrorMessage = message
-                        }
+                    Button {
+                        showInstallAlert()
+                    } label: {
+                        Label("Move to Applications…", systemImage: "arrow.down.app.fill")
                     }
                     .font(.caption)
-
-                    if let installErrorMessage {
-                        Text(installErrorMessage)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                    }
                     Divider()
                 }
 
@@ -178,6 +200,33 @@ struct HoldToTalkApp: App {
             Text(text)
                 .font(.caption)
                 .foregroundStyle(.red)
+        }
+    }
+
+    @MainActor
+    private func showInstallAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Move to Applications?"
+        alert.informativeText = "Hold to Talk works best when installed in /Applications. Permissions and Launch at Login require it.\n\nWould you like to move it now?"
+        alert.alertStyle = .informational
+        if let icon = Self.appIcon {
+            alert.icon = icon
+        }
+        alert.addButton(withTitle: "Move to Applications")
+        alert.addButton(withTitle: "Not Now")
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            switch installToApplicationsAndRelaunch() {
+            case .success:
+                break
+            case .failure(let message):
+                let errorAlert = NSAlert()
+                errorAlert.messageText = "Could Not Move App"
+                errorAlert.informativeText = message
+                errorAlert.alertStyle = .warning
+                errorAlert.runModal()
+            }
         }
     }
 
