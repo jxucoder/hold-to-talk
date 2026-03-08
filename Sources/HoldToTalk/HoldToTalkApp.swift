@@ -30,23 +30,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private func showInstallPrompt() {
         NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "Move to Applications?"
-        alert.informativeText = "Hold to Talk works best when installed in /Applications. Permissions and Launch at Login require it.\n\nWould you like to move it now?"
-        alert.alertStyle = .informational
-        if let icon = HoldToTalkApp.appIcon {
-            alert.icon = icon
-        }
-        alert.addButton(withTitle: "Move to Applications")
-        alert.addButton(withTitle: "Not Now")
-        alert.showsSuppressionButton = true
+        let compatibility = SystemCompatibility.current()
+        let alert = makeInstallAlert(icon: HoldToTalkApp.appIcon, compatibility: compatibility)
+        alert.showsSuppressionButton = compatibility.isSupported
         alert.suppressionButton?.title = "Don't ask again"
 
         let response = alert.runModal()
 
-        if alert.suppressionButton?.state == .on {
+        if compatibility.isSupported, alert.suppressionButton?.state == .on {
             UserDefaults.standard.set(true, forKey: dismissedInstallPromptDefaultsKey)
         }
+
+        guard compatibility.isSupported else { return }
 
         if response == .alertFirstButtonReturn {
             switch installToApplicationsAndRelaunch() {
@@ -288,17 +283,12 @@ struct HoldToTalkApp: App {
 
     @MainActor
     private func showInstallAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Move to Applications?"
-        alert.informativeText = "Hold to Talk works best when installed in /Applications. Permissions and Launch at Login require it.\n\nWould you like to move it now?"
-        alert.alertStyle = .informational
-        if let icon = Self.appIcon {
-            alert.icon = icon
-        }
-        alert.addButton(withTitle: "Move to Applications")
-        alert.addButton(withTitle: "Not Now")
+        let compatibility = SystemCompatibility.current()
+        let alert = makeInstallAlert(icon: Self.appIcon, compatibility: compatibility)
 
         let response = alert.runModal()
+        guard compatibility.isSupported else { return }
+
         if response == .alertFirstButtonReturn {
             switch installToApplicationsAndRelaunch() {
             case .success:
@@ -346,6 +336,26 @@ struct HoldToTalkApp: App {
         if let img = NSImage(contentsOf: url), img.isValid { return img }
         return nil
     }()
+}
+
+private func makeInstallAlert(
+    icon: NSImage?,
+    compatibility: SystemCompatibility
+) -> NSAlert {
+    let alert = NSAlert()
+    alert.messageText = compatibility.isSupported ? "Move to Applications?" : "This Mac is not supported"
+    alert.informativeText = compatibility.installPromptText
+    alert.alertStyle = compatibility.isSupported ? .informational : .warning
+    alert.icon = icon
+
+    if compatibility.isSupported {
+        alert.addButton(withTitle: "Move to Applications")
+        alert.addButton(withTitle: "Not Now")
+    } else {
+        alert.addButton(withTitle: "OK")
+    }
+
+    return alert
 }
 
 private struct OnboardingWindowConfigurator: NSViewRepresentable {

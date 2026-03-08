@@ -8,6 +8,7 @@ let canvasRect = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
 
 let titleRect = CGRect(x: 70, y: 330, width: 580, height: 52)
 let subtitleRect = CGRect(x: 90, y: 294, width: 540, height: 24)
+let requirementRect = CGRect(x: 214, y: 254, width: 292, height: 30)
 let laneRect = CGRect(x: 72, y: 116, width: 576, height: 132)
 let leftStepRect = CGRect(x: 108, y: 222, width: 160, height: 24)
 let rightStepRect = CGRect(x: 452, y: 222, width: 170, height: 24)
@@ -24,6 +25,7 @@ guard CommandLine.arguments.count >= 2 else {
 
 let outputURL = URL(fileURLWithPath: CommandLine.arguments[1])
 let textureURL = CommandLine.arguments.count >= 3 ? URL(fileURLWithPath: CommandLine.arguments[2]) : nil
+let minimumSystemVersion = CommandLine.arguments.dropFirst(3).first(where: isVersionString) ?? "15.0"
 
 guard
   let bitmap = NSBitmapImageRep(
@@ -124,6 +126,30 @@ func drawLane(in rect: CGRect) {
   lanePath.stroke()
 }
 
+func drawRequirementsBadge() {
+  let badgePath = NSBezierPath(roundedRect: requirementRect, xRadius: 15, yRadius: 15)
+  NSColor(calibratedRed: 0.949, green: 0.973, blue: 0.987, alpha: 0.96).setFill()
+  badgePath.fill()
+
+  NSColor(calibratedRed: 0.529, green: 0.682, blue: 0.835, alpha: 0.95).setStroke()
+  badgePath.lineWidth = 1.0
+  badgePath.stroke()
+
+  let style = NSMutableParagraphStyle()
+  style.alignment = .center
+
+  let requirements = NSAttributedString(
+    string: "Requires macOS \(displayRequirement(minimumSystemVersion)) and Apple Silicon",
+    attributes: [
+      .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+      .foregroundColor: NSColor(calibratedRed: 0.210, green: 0.298, blue: 0.392, alpha: 1.0),
+      .paragraphStyle: style
+    ]
+  )
+
+  requirements.draw(in: requirementRect.insetBy(dx: 8, dy: 6))
+}
+
 func drawApplicationsIcon() {
   let backgroundPath = NSBezierPath(roundedRect: applicationsIconRect.insetBy(dx: -6, dy: -6), xRadius: 22, yRadius: 22)
   NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 0.52).setFill()
@@ -216,9 +242,22 @@ func drawArrow(in context: CGContext) {
   context.restoreGState()
 }
 
+func isVersionString(_ candidate: String) -> Bool {
+  candidate.range(of: #"^\d+(\.\d+){0,2}$"#, options: .regularExpression) != nil
+}
+
+func displayRequirement(_ version: String) -> String {
+  let components = version.split(separator: ".").map(String.init)
+  if components.count >= 2, components[1] != "0" {
+    return "\(components[0]).\(components[1])+"
+  }
+  return "\(components[0])+"
+}
+
 drawBaseFill(in: canvasRect)
 drawTopGlow(in: canvasRect)
 drawLane(in: canvasRect)
+drawRequirementsBadge()
 drawApplicationsIcon()
 drawTitle(in: canvasRect)
 drawArrow(in: context)
