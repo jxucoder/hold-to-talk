@@ -6,7 +6,7 @@ APP_BUNDLE := .build/$(APP_NAME).app
 APP_INSTALL_DIR ?= /Applications
 SIGNING_IDENTITY ?= -
 DIST_DIR ?= dist
-DMG_VOLUME_NAME ?= Hold to Talk
+DMG_VOLUME_NAME ?= Hold to Talk $(VERSION)
 APP_STORE ?= 0
 
 VERSION := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
