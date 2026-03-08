@@ -67,13 +67,13 @@ final class DictationEngine: ObservableObject {
         return CGPreflightListenEventAccess()
     }()
 
-    @AppStorage("onboardingComplete") var onboardingComplete = false
-    @AppStorage("whisperModel") var whisperModel = WhisperModelInfo.defaultModelID
-    @AppStorage("transcriptionProfile") var transcriptionProfile = TranscriptionProfile.balanced.rawValue
-    @AppStorage("cleanupEnabled") var cleanupEnabled = true
-    @AppStorage("cleanupPrompt") var cleanupPrompt = TextProcessor.defaultPrompt
-    @AppStorage("hotkeyChoice") var hotkeyChoice = "ctrl"
-    @AppStorage("hasPromptedInputMonitoring") private var hasPromptedInputMonitoring = false
+    @AppStorage(onboardingCompleteDefaultsKey) var onboardingComplete = false
+    @AppStorage(whisperModelDefaultsKey) var whisperModel = WhisperModelInfo.defaultModelID
+    @AppStorage(transcriptionProfileDefaultsKey) var transcriptionProfile = TranscriptionProfile.balanced.rawValue
+    @AppStorage(cleanupEnabledDefaultsKey) var cleanupEnabled = true
+    @AppStorage(cleanupPromptDefaultsKey) var cleanupPrompt = TextProcessor.defaultPrompt
+    @AppStorage(hotkeyChoiceDefaultsKey) var hotkeyChoice = HotkeyManager.Hotkey.ctrl.rawValue
+    @AppStorage(inputMonitoringPromptedDefaultsKey) private var hasPromptedInputMonitoring = false
 
     let availableWhisperModels: [WhisperModelInfo]
     let recommendedWhisperModelID: String
@@ -96,7 +96,7 @@ final class DictationEngine: ObservableObject {
         recommendedWhisperModelID = profile.recommendedID
 
         // Migrate legacy IDs and guarantee current selection is device-supported.
-        if let stored = UserDefaults.standard.string(forKey: "whisperModel") {
+        if let stored = UserDefaults.standard.string(forKey: whisperModelDefaultsKey) {
             let normalized = WhisperModelInfo.normalizeModelID(stored)
             whisperModel = availableWhisperModels.contains(where: { $0.id == normalized })
                 ? normalized
@@ -204,6 +204,7 @@ final class DictationEngine: ObservableObject {
 
     func stop() {
         hotkeyManager.stop()
+        didStart = false
         // Fix #14: cancel accessibility poll when the engine stops
         axPollTask?.cancel()
         axPollTask = nil
@@ -216,6 +217,32 @@ final class DictationEngine: ObservableObject {
         // Fix #3: cancel HUD subscription to prevent leaks on re-creation
         hudBinding?.cancel()
         hudBinding = nil
+    }
+
+    func resetForFreshOnboarding() {
+        stop()
+        resetPersistedAppStateForFreshOnboarding()
+
+        state = .idle
+        lastRawText = ""
+        lastCleanText = ""
+        lastInsertDebug = ""
+        lastError = nil
+        recordingTargetAppPID = nil
+        recordingTargetBundleID = nil
+        transcriber = nil
+
+        onboardingComplete = false
+        UserDefaults.standard.set(0, forKey: onboardingStepDefaultsKey)
+        whisperModel = recommendedWhisperModelID
+        transcriptionProfile = TranscriptionProfile.balanced.rawValue
+        cleanupEnabled = true
+        cleanupPrompt = TextProcessor.defaultPrompt
+        hotkeyChoice = HotkeyManager.Hotkey.ctrl.rawValue
+        hasPromptedInputMonitoring = false
+
+        modelManager.handleFreshOnboardingReset()
+        refreshPermissionSnapshot()
     }
 
     func reloadHotkey() {

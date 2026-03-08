@@ -4,7 +4,7 @@ import Foundation
 /// Launch-argument helpers for testing flows without fighting real permissions / state.
 ///
 /// Usage (from terminal):
-///   swift run HoldToTalk -- --reset-onboarding            # wipe onboarding state and show it
+///   swift run HoldToTalk -- --reset-onboarding            # wipe app/onboarding state and show it
 ///   swift run HoldToTalk -- --onboarding-step 2           # jump straight to model-download step
 ///   swift run HoldToTalk -- --skip-permissions             # pretend all permissions are granted
 ///

@@ -153,6 +153,17 @@ final class ModelManager: ObservableObject {
         downloaded = found
     }
 
+    func handleFreshOnboardingReset() {
+        for task in downloadTasks.values {
+            task.cancel()
+        }
+        downloadTasks.removeAll()
+        downloading.removeAll()
+        downloadProgress.removeAll()
+        downloadErrors.removeAll()
+        refreshDownloadStatus()
+    }
+
     // Fix #3: non-async; spawns a tracked task internally so it can be cancelled
     func download(_ modelId: String) {
         // Normalize up-front so all state keys (downloading, downloaded, downloadProgress, etc.)
