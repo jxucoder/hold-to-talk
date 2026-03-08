@@ -494,16 +494,18 @@ struct OnboardingView: View {
     private var modelStep: some View {
         let selectableModels = engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels
         let recommendedModelName = modelDisplayName(engine.recommendedWhisperModelID)
+        let selectedModel = selectableModels.first(where: { $0.id == engine.whisperModel })
+            ?? WhisperModelInfo.all.first(where: { $0.id == engine.whisperModel })
 
         return VStack(spacing: 20) {
             Text("Download Model")
                 .font(.title2.bold())
 
-            Text("Hold to Talk needs an on-device speech model.\nPick one to download — nothing starts until you approve it, and you can change this later in Settings.")
+            Text("Hold to Talk needs an on-device speech model.\nPick one to download. Nothing starts until you approve it, you can inspect exactly where it comes from below, and you can change this later in Settings.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 380)
+                .frame(maxWidth: 430)
 
             Text("Recommended for this Mac: \(recommendedModelName)")
                 .font(.caption)
@@ -517,6 +519,11 @@ struct OnboardingView: View {
             }
             .pickerStyle(.menu)
             .frame(width: 280)
+
+            if let selectedModel {
+                ModelTrustView(model: selectedModel)
+                    .frame(maxWidth: 460)
+            }
 
             let modelId = engine.whisperModel
             let isDownloaded = modelManager.downloaded.contains(modelId)

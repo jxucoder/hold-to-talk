@@ -7,8 +7,49 @@ struct WhisperModelInfo: Identifiable {
     let sizeLabel: String
     let englishOnly: Bool
 
+    static let downloadRepositoryName = "argmaxinc/whisperkit-coreml"
+    static let downloadRepositoryURL = URL(string: "https://huggingface.co/argmaxinc/whisperkit-coreml")!
+    static let whisperKitURL = URL(string: "https://github.com/argmaxinc/WhisperKit")!
+    static let openAIWhisperURL = URL(string: "https://github.com/openai/whisper")!
+    static let distilWhisperURL = URL(string: "https://huggingface.co/distil-whisper/distil-large-v3")!
+
     static let defaultModelID = "large-v3_turbo"
     static let repoPrefixes = ["openai_whisper-", "distil-whisper_"]
+
+    var isDistilled: Bool {
+        id.hasPrefix("distil-")
+    }
+
+    var languageSummary: String {
+        englishOnly ? "English only" : "Multilingual"
+    }
+
+    var familyDisplayName: String {
+        isDistilled ? "Distil-Whisper" : "OpenAI Whisper"
+    }
+
+    var familyURL: URL {
+        isDistilled ? Self.distilWhisperURL : Self.openAIWhisperURL
+    }
+
+    var repoFolderName: String {
+        let prefix = isDistilled ? "distil-whisper_" : "openai_whisper-"
+        return prefix + id
+    }
+
+    var downloadURL: URL {
+        URL(string: "https://huggingface.co/\(Self.downloadRepositoryName)/tree/main/\(repoFolderName)")!
+    }
+
+    var trustSummary: String {
+        let familySummary: String
+        if isDistilled {
+            familySummary = "a distilled Whisper variant optimized for a smaller download"
+        } else {
+            familySummary = "an OpenAI Whisper model converted for Core ML"
+        }
+        return "Runs fully on your Mac after download. Hold to Talk downloads \(familySummary) from Argmax's WhisperKit model repository on Hugging Face."
+    }
 
     /// Maps legacy IDs to WhisperKit-compatible variant names.
     static func normalizeModelID(_ id: String) -> String {

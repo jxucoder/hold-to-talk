@@ -39,4 +39,18 @@ final class WhisperModelInfoTests: XCTestCase {
         XCTAssertTrue(WhisperModelInfo.all.first(where: { $0.id == "distil-large-v3" })?.englishOnly == true)
         XCTAssertTrue(WhisperModelInfo.all.first(where: { $0.id == "distil-large-v3_turbo" })?.englishOnly == true)
     }
+
+    func testModelLinksPointToExpectedSources() throws {
+        let openAIModel = try XCTUnwrap(WhisperModelInfo.all.first(where: { $0.id == "large-v3_turbo" }))
+        XCTAssertEqual(openAIModel.repoFolderName, "openai_whisper-large-v3_turbo")
+        XCTAssertEqual(openAIModel.downloadURL.absoluteString, "https://huggingface.co/argmaxinc/whisperkit-coreml/tree/main/openai_whisper-large-v3_turbo")
+        XCTAssertEqual(openAIModel.familyDisplayName, "OpenAI Whisper")
+        XCTAssertEqual(openAIModel.familyURL.absoluteString, "https://github.com/openai/whisper")
+
+        let distilledModel = try XCTUnwrap(WhisperModelInfo.all.first(where: { $0.id == "distil-large-v3" }))
+        XCTAssertEqual(distilledModel.repoFolderName, "distil-whisper_distil-large-v3")
+        XCTAssertEqual(distilledModel.downloadURL.absoluteString, "https://huggingface.co/argmaxinc/whisperkit-coreml/tree/main/distil-whisper_distil-large-v3")
+        XCTAssertEqual(distilledModel.familyDisplayName, "Distil-Whisper")
+        XCTAssertEqual(distilledModel.familyURL.absoluteString, "https://huggingface.co/distil-whisper/distil-large-v3")
+    }
 }

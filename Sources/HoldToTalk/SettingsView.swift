@@ -180,6 +180,10 @@ struct SettingsView: View {
                 }
                 .contentShape(Rectangle())
                 .onTapGesture { showManageModels.toggle() }
+
+                if let activeModel = sortedModels.first(where: { $0.id == activeModelID }) {
+                    ModelTrustView(model: activeModel)
+                }
             }
 
             Section("Cleanup") {
