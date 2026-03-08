@@ -6,14 +6,6 @@
 
 Free, open-source voice dictation for macOS. Hold a key, speak, release — your words appear wherever your cursor is. Your audio stays local and safe on your Mac.
 
-- **Free and open-source** — no subscription, no paywall, no black box. Inspect the code, build it yourself, or install a signed release.
-- **Local and safe** — powered by [WhisperKit](https://github.com/argmaxinc/WhisperKit), transcription runs entirely on Apple Silicon via Core ML. No cloud upload, no accounts, no in-app tracking.
-- **Fast on-device AI** — optimized for low-latency dictation with high-performance on-device speech models, plus optional Apple Intelligence cleanup when available.
-- **Works everywhere** — dictate into any app: Slack, Notes, your IDE, email, browser — anywhere you can type.
-- **Apple Intelligence cleanup** (optional) — on-device grammar and filler-word removal with a customizable prompt. Requires macOS 26+.
-- **Auto-updates** — direct downloads update in-app via [Sparkle](https://sparkle-project.org).
-- **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
-
 <p align="center">
   <a href="https://jxucoder.github.io/hold-to-talk/demo.mp4">
     <img src="Resources/demo.gif" width="680" alt="Hold to Talk demo">
@@ -21,8 +13,18 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 </p>
 
 <p align="center">
+  <a href="https://jxucoder.github.io/hold-to-talk/">Website</a>
+  ·
   <a href="https://jxucoder.github.io/hold-to-talk/demo.mp4">Watch the demo video</a>
 </p>
+
+- **Free and open-source** — no subscription, no paywall, no black box. Inspect the code, build it yourself, or install a signed release.
+- **Local and safe** — powered by [WhisperKit](https://github.com/argmaxinc/WhisperKit), transcription runs entirely on Apple Silicon via Core ML. No cloud upload, no accounts, no in-app tracking.
+- **Fast on-device AI** — optimized for low-latency dictation with high-performance on-device speech models, plus optional Apple Intelligence cleanup when available.
+- **Works everywhere** — dictate into any app: Slack, Notes, your IDE, email, browser — anywhere you can type.
+- **Apple Intelligence cleanup** (optional) — on-device grammar and filler-word removal with a customizable prompt. Requires macOS 26+.
+- **Auto-updates** — direct downloads update in-app via [Sparkle](https://sparkle-project.org).
+- **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
 
 ## Install
 
