@@ -8,10 +8,10 @@ let canvasRect = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
 
 let titleRect = CGRect(x: 56, y: 330, width: 608, height: 52)
 let subtitleRect = CGRect(x: 88, y: 292, width: 544, height: 24)
-let requirementRect = CGRect(x: 212, y: 72, width: 296, height: 32)
+let requirementRect = CGRect(x: 212, y: 96, width: 296, height: 32)
 let leftDropRect = CGRect(x: 116, y: 138, width: 144, height: 102)
 let rightDropRect = CGRect(x: 460, y: 138, width: 144, height: 102)
-let footerRect = CGRect(x: 122, y: 26, width: 476, height: 18)
+let footerRect = CGRect(x: 122, y: 60, width: 476, height: 18)
 let arrowY: CGFloat = 194
 let arrowStartX: CGFloat = 298
 let arrowEndX: CGFloat = 422
