@@ -385,12 +385,11 @@ struct SettingsView: View {
             return
         }
 
-        requestAccessibilityPermission(openSettings: false)
+        _ = requestAccessibilityPermission()
         refreshPermissionSnapshot()
         if !engine.hasAccessibility {
             pendingFixInputMonitoring = true
             diagnosticsMessage = "Enable Accessibility, then return to Hold to Talk."
-            openSystemSettings("Privacy_Accessibility")
             isRunningEnvironmentFix = false
             return
         }
@@ -407,12 +406,11 @@ struct SettingsView: View {
     }
 
     private func finishGuidedEnvironmentFix() {
-        requestInputMonitoringPermission(openSettings: false)
+        _ = requestInputMonitoringPermission()
         refreshPermissionSnapshot()
 
         if !engine.hasInputMonitoring {
             diagnosticsMessage = "Enable Input Monitoring, then return to Hold to Talk."
-            openSystemSettings("Privacy_ListenEvent")
             isRunningEnvironmentFix = false
             return
         }
@@ -449,20 +447,14 @@ struct SettingsView: View {
         }
     }
 
-    private func requestAccessibilityPermission(openSettings: Bool) {
-        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(opts)
-        if !AXIsProcessTrusted() && openSettings {
-            openSystemSettings("Privacy_Accessibility")
-        }
+    @discardableResult
+    private func requestAccessibilityPermission() -> PermissionRequestResult {
+        requestAccessibilityAccess()
     }
 
-    private func requestInputMonitoringPermission(openSettings: Bool) {
-        _ = CGRequestListenEventAccess()
-        UserDefaults.standard.set(true, forKey: "hasPromptedInputMonitoring")
-        if !CGPreflightListenEventAccess() && openSettings {
-            openSystemSettings("Privacy_ListenEvent")
-        }
+    @discardableResult
+    private func requestInputMonitoringPermission() -> PermissionRequestResult {
+        requestInputMonitoringAccess()
     }
 
     private func modelDisplayName(_ id: String) -> String {

@@ -33,6 +33,8 @@ enum TranscriptionProfile: String, CaseIterable, Identifiable {
 actor Transcriber {
     private var whisper: WhisperKit?
     private var loadTask: Task<WhisperKit, Error>?
+    private var decodeWarmupTask: Task<Void, Error>?
+    private var hasCompletedDecodeWarmup = false
     let modelSize: String
 
     init(modelSize: String = "small.en") {
@@ -65,9 +67,34 @@ actor Transcriber {
         print("[transcriber] Ready.")
     }
 
+    func prepareForFirstTranscription(profile: TranscriptionProfile = .balanced) async throws {
+        if hasCompletedDecodeWarmup {
+            return
+        }
+
+        if let decodeWarmupTask {
+            try await decodeWarmupTask.value
+            return
+        }
+
+        let task = Task { [self] in
+            try await runDecodeWarmup(profile: profile)
+        }
+        decodeWarmupTask = task
+        defer { decodeWarmupTask = nil }
+
+        try await task.value
+        hasCompletedDecodeWarmup = true
+        print("[transcriber] Decode warm-up complete.")
+    }
+
     /// Transcribe 16 kHz mono float audio → text.
     func transcribe(_ audio: [Float], profile: TranscriptionProfile = .balanced) async throws -> String {
-        if whisper == nil { try await loadModel() }
+        if let decodeWarmupTask {
+            try await decodeWarmupTask.value
+        } else if whisper == nil {
+            try await loadModel()
+        }
         guard let whisper, !audio.isEmpty else { return "" }
 
         let durationSeconds = Double(audio.count) / Double(WhisperKit.sampleRate)
@@ -109,5 +136,15 @@ actor Transcriber {
             concurrentWorkerCount: workerCount,
             chunkingStrategy: chunking
         )
+    }
+
+    private func runDecodeWarmup(profile: TranscriptionProfile) async throws {
+        try await loadModel()
+        guard let whisper, !hasCompletedDecodeWarmup else { return }
+
+        print("[transcriber] Running decode warm-up…")
+        let silence = Array(repeating: Float(0), count: Int(WhisperKit.sampleRate))
+        let options = decodingOptions(forDuration: 1.0, profile: profile)
+        _ = try await whisper.transcribe(audioArray: silence, decodeOptions: options)
     }
 }

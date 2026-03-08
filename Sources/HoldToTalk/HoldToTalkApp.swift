@@ -14,7 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if DebugFlags.resetOnboarding {
             UserDefaults.standard.set(false, forKey: "onboardingComplete")
             UserDefaults.standard.removeObject(forKey: "onboardingStep")
-            UserDefaults.standard.removeObject(forKey: "hasPromptedInputMonitoring")
+            UserDefaults.standard.removeObject(forKey: accessibilityPromptedDefaultsKey)
+            UserDefaults.standard.removeObject(forKey: inputMonitoringPromptedDefaultsKey)
             print("[debug] Onboarding state reset.")
         }
         #endif
@@ -131,6 +132,7 @@ struct HoldToTalkApp: App {
             SettingsView(engine: engine, modelManager: engine.modelManager, updater: updaterController.updater)
         }
         .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
     }
 
     private var label: some View {
@@ -201,9 +203,7 @@ struct HoldToTalkApp: App {
                     if !engine.hasAccessibility {
                         permissionWarningRow("Accessibility not granted")
                         Button("Grant Accessibility…") {
-                            let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                            _ = AXIsProcessTrustedWithOptions(opts)
-                            openSystemSettings("Privacy_Accessibility")
+                            _ = requestAccessibilityAccess()
                         }
                         .font(.caption)
                     }
@@ -211,8 +211,7 @@ struct HoldToTalkApp: App {
                     if !engine.hasInputMonitoring {
                         permissionWarningRow("Input Monitoring not granted")
                         Button("Grant Input Monitoring…") {
-                            _ = CGRequestListenEventAccess()
-                            openSystemSettings("Privacy_ListenEvent")
+                            _ = requestInputMonitoringAccess()
                         }
                         .font(.caption)
                     }

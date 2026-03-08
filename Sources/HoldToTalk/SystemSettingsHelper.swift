@@ -1,4 +1,15 @@
 import AppKit
+import ApplicationServices
+import Foundation
+
+let accessibilityPromptedDefaultsKey = "hasPromptedAccessibility"
+let inputMonitoringPromptedDefaultsKey = "hasPromptedInputMonitoring"
+
+enum PermissionRequestResult {
+    case granted
+    case prompted
+    case openedSettings
+}
 
 /// Opens the specified System Settings / System Preferences privacy pane.
 ///
@@ -18,4 +29,39 @@ func openSystemSettings(_ anchor: String) {
     if let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security") {
         NSWorkspace.shared.open(fallback)
     }
+}
+
+@discardableResult
+func requestAccessibilityAccess() -> PermissionRequestResult {
+    if AXIsProcessTrusted() {
+        return .granted
+    }
+
+    let defaults = UserDefaults.standard
+    if defaults.bool(forKey: accessibilityPromptedDefaultsKey) {
+        openSystemSettings("Privacy_Accessibility")
+        return .openedSettings
+    }
+
+    let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+    let trusted = AXIsProcessTrustedWithOptions(options)
+    defaults.set(true, forKey: accessibilityPromptedDefaultsKey)
+    return trusted ? .granted : .prompted
+}
+
+@discardableResult
+func requestInputMonitoringAccess() -> PermissionRequestResult {
+    if CGPreflightListenEventAccess() {
+        return .granted
+    }
+
+    let defaults = UserDefaults.standard
+    if defaults.bool(forKey: inputMonitoringPromptedDefaultsKey) {
+        openSystemSettings("Privacy_ListenEvent")
+        return .openedSettings
+    }
+
+    let granted = CGRequestListenEventAccess()
+    defaults.set(true, forKey: inputMonitoringPromptedDefaultsKey)
+    return (granted || CGPreflightListenEventAccess()) ? .granted : .prompted
 }

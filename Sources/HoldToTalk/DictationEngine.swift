@@ -123,10 +123,11 @@ final class DictationEngine: ObservableObject {
     func prewarmTranscriber() {
         let activeTranscriber = ensureActiveTranscriber()
         let modelSize = activeTranscriber.modelSize
+        let profile = resolvedTranscriptionProfile
         transcriberWarmupTask?.cancel()
         transcriberWarmupTask = Task { [weak self] in
             do {
-                try await activeTranscriber.loadModel()
+                try await activeTranscriber.prepareForFirstTranscription(profile: profile)
             } catch {
                 print("[holdtotalk] Model pre-warm failed: \(error)")
                 guard let self else { return }

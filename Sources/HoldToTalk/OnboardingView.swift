@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import AVFoundation
 import ApplicationServices
 
@@ -12,11 +13,12 @@ struct OnboardingView: View {
     @State private var hasAccessibility = false
     @State private var hasInputMonitoring = false
     @State private var downloadStarted = false
-    @State private var hasShownAccessibilityPrompt = false
-    @State private var hasShownInputMonitoringPrompt = UserDefaults.standard.bool(forKey: "hasPromptedInputMonitoring")
+    @State private var hasShownAccessibilityPrompt = UserDefaults.standard.bool(forKey: accessibilityPromptedDefaultsKey)
+    @State private var hasShownInputMonitoringPrompt = UserDefaults.standard.bool(forKey: inputMonitoringPromptedDefaultsKey)
     @State private var isRequestingPermissions = false
     @State private var isInstallingToApplications = false
     @State private var installErrorMessage: String?
+    @State private var onboardingWindow: NSWindow?
     @StateObject private var hotkeyTester = HotkeyTester()
 
     init(engine: DictationEngine, modelManager: ModelManager) {
@@ -94,6 +96,7 @@ struct OnboardingView: View {
         }
         .frame(width: 480, height: 520)
         .animation(.easeInOut(duration: 0.3), value: step)
+        .background(OnboardingWindowReader(window: $onboardingWindow))
     }
 
     // MARK: - Step 1: Welcome
@@ -359,6 +362,7 @@ struct OnboardingView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             isRequestingPermissions = false
             refreshPermissions()
+            refocusOnboardingWindow()
         }
     }
 
@@ -501,6 +505,7 @@ struct OnboardingView: View {
             modelManager.refreshDownloadStatus()
             ensureSupportedModelSelection()
             startModelDownloadIfNeeded()
+            warmUpSelectedModelIfReady()
         }
         .onChange(of: engine.whisperModel) {
             modelManager.refreshDownloadStatus()
@@ -508,6 +513,10 @@ struct OnboardingView: View {
             // Do NOT auto-download on model selection change — the user should explicitly
             // press "Download" for the new selection. Auto-downloading on every picker
             // change wastes bandwidth if the user is browsing options on a metered connection.
+            warmUpSelectedModelIfReady()
+        }
+        .onChange(of: modelManager.downloaded) {
+            warmUpSelectedModelIfReady()
         }
     }
 
@@ -648,6 +657,11 @@ struct OnboardingView: View {
         downloadStarted = true
     }
 
+    private func warmUpSelectedModelIfReady() {
+        guard modelManager.downloaded.contains(engine.whisperModel) else { return }
+        engine.prewarmTranscriber()
+    }
+
     private func isModelUnavailableError(_ error: String) -> Bool {
         error.localizedCaseInsensitiveContains("No models found matching")
             || error.localizedCaseInsensitiveContains("models unavailable")
@@ -708,6 +722,7 @@ struct OnboardingView: View {
         switch status {
         case .authorized:
             hasMicrophone = true
+            refocusOnboardingWindow()
             completion?()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { granted in
@@ -716,6 +731,7 @@ struct OnboardingView: View {
                     if !granted && openSettings {
                         openSystemSettings("Privacy_Microphone")
                     }
+                    self.refocusOnboardingWindow()
                     completion?()
                 }
             }
@@ -724,33 +740,25 @@ struct OnboardingView: View {
             if openSettings {
                 openSystemSettings("Privacy_Microphone")
             }
+            refocusOnboardingWindow()
             completion?()
         @unknown default:
             hasMicrophone = false
+            refocusOnboardingWindow()
             completion?()
         }
     }
 
-    private func requestAccessibilityPermission(openSettings: Bool = true) {
-        // Request so macOS registers the app in Accessibility.
-        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        let trusted = AXIsProcessTrustedWithOptions(opts)
+    private func requestAccessibilityPermission() {
+        _ = requestAccessibilityAccess()
         hasShownAccessibilityPrompt = true
-        hasAccessibility = trusted
-        engine.hasAccessibility = trusted
-        if !trusted && openSettings {
-            openSystemSettings("Privacy_Accessibility")
-        }
+        refreshPermissions()
     }
 
-    private func requestInputMonitoringPermission(openSettings: Bool = true) {
-        let requestGranted = CGRequestListenEventAccess()
+    private func requestInputMonitoringPermission() {
+        _ = requestInputMonitoringAccess()
         hasShownInputMonitoringPrompt = true
-        UserDefaults.standard.set(true, forKey: "hasPromptedInputMonitoring")
-        hasInputMonitoring = requestGranted || CGPreflightListenEventAccess()
-        if !hasInputMonitoring && openSettings {
-            openSystemSettings("Privacy_ListenEvent")
-        }
+        refreshPermissions()
     }
 
     private func refreshPermissions() {
@@ -760,7 +768,46 @@ struct OnboardingView: View {
         hasInputMonitoring = engine.hasInputMonitoring
     }
 
+    private func refocusOnboardingWindow() {
+        guard step == 1, !engine.onboardingComplete, let onboardingWindow else { return }
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            onboardingWindow.makeKeyAndOrderFront(nil)
+            onboardingWindow.orderFrontRegardless()
+        }
+    }
+
     // openSystemSettings is now a shared top-level function in SystemSettingsHelper.swift
+}
+
+private struct OnboardingWindowReader: NSViewRepresentable {
+    @Binding var window: NSWindow?
+
+    func makeNSView(context: Context) -> OnboardingWindowProbeView {
+        let view = OnboardingWindowProbeView()
+        view.onResolve = { resolvedWindow in
+            self.window = resolvedWindow
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: OnboardingWindowProbeView, context: Context) {
+        nsView.onResolve = { resolvedWindow in
+            self.window = resolvedWindow
+        }
+        if window !== nsView.window {
+            window = nsView.window
+        }
+    }
+}
+
+private final class OnboardingWindowProbeView: NSView {
+    var onResolve: ((NSWindow?) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        onResolve?(window)
+    }
 }
 
 // MARK: - HotkeyTester

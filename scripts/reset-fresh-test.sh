@@ -53,13 +53,25 @@ done
 
 resolve_home() {
   local user="$1"
-  local home
-  home="$(dscl . -read "/Users/${user}" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"
-  if [[ -n "${home}" ]]; then
+  local home=""
+  home="$(dscl . -read "/Users/${user}" NFSHomeDirectory 2>/dev/null | sed -n 's/^NFSHomeDirectory: //p')"
+  if [[ -n "${home}" && -d "${home}" ]]; then
     printf '%s\n' "${home}"
     return
   fi
-  eval "printf '%s\n' \"~${user}\""
+
+  if [[ "${user}" == "${USER:-}" && -n "${HOME:-}" && -d "${HOME}" ]]; then
+    printf '%s\n' "${HOME}"
+    return
+  fi
+
+  eval "home=~${user}"
+  if [[ -n "${home}" && "${home}" != "~${user}" && -d "${home}" ]]; then
+    printf '%s\n' "${home}"
+    return
+  fi
+
+  return 1
 }
 
 USER_HOME="$(resolve_home "${APP_USER}")"

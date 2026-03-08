@@ -47,11 +47,12 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 APP_NAME="$(basename "${APP_BUNDLE}")"
 APP_ITEM_NAME="${APP_NAME}"
 BACKGROUND_NAME="installer-background.png"
+ICON_SOURCE="${REPO_ROOT}/Resources/HoldToTalk.icns"
 WINDOW_LEFT=140
 WINDOW_TOP=120
 WINDOW_WIDTH=720
 WINDOW_HEIGHT=460
-ICON_SIZE=128
+ICON_SIZE=112
 APP_POS_X=188
 APP_POS_Y=252
 APPS_POS_X=532
@@ -76,13 +77,18 @@ trap cleanup EXIT
 
 mkdir -p "${STAGING_DIR}" "${BACKGROUND_DIR}" "$(dirname "${OUTPUT_DMG}")"
 cp -R "${APP_BUNDLE}" "${STAGING_DIR}/"
-ln -s /Applications "${STAGING_DIR}/Applications"
 
 CLANG_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-clang-cache" \
 SWIFT_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-swift-cache" \
 swift "${SCRIPT_DIR}/render-dmg-background.swift" \
   "${BACKGROUND_PATH}" \
   "${REPO_ROOT}/Resources/dmg-background.jpeg"
+
+CLANG_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-clang-cache" \
+SWIFT_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-swift-cache" \
+swift "${SCRIPT_DIR}/create-finder-alias.swift" \
+  "/Applications" \
+  "${STAGING_DIR}/Applications"
 
 STAGING_MB="$(du -sm "${STAGING_DIR}" | awk '{print $1}')"
 DMG_SIZE_MB=$((STAGING_MB + 32))
@@ -115,6 +121,12 @@ if [[ -z "${DMG_DEVICE}" || -z "${MOUNT_DIR}" ]]; then
 fi
 
 ditto "${STAGING_DIR}" "${MOUNT_DIR}"
+if [[ -f "${ICON_SOURCE}" ]]; then
+  cp "${ICON_SOURCE}" "${MOUNT_DIR}/.VolumeIcon.icns"
+  SetFile -a C "${MOUNT_DIR}" >/dev/null 2>&1 || true
+  SetFile -a V "${MOUNT_DIR}/.VolumeIcon.icns" >/dev/null 2>&1 || true
+  chflags hidden "${MOUNT_DIR}/.VolumeIcon.icns" >/dev/null 2>&1 || true
+fi
 SetFile -a V "${MOUNT_DIR}/.background" >/dev/null 2>&1 || true
 SetFile -a V "${MOUNT_DIR}/.background/${BACKGROUND_NAME}" >/dev/null 2>&1 || true
 chflags hidden "${MOUNT_DIR}/.background" >/dev/null 2>&1 || true
@@ -206,5 +218,15 @@ hdiutil convert "${RW_DMG}" \
   -imagekey zlib-level=9 \
   -ov \
   -o "${OUTPUT_DMG}" >/dev/null
+
+if [[ -f "${ICON_SOURCE}" ]]; then
+  DMG_ICON="${WORK_DIR}/dmg-file-icon.icns"
+  DMG_ICON_RSRC="${WORK_DIR}/dmg-file-icon.rsrc"
+  cp "${ICON_SOURCE}" "${DMG_ICON}"
+  sips -i "${DMG_ICON}" >/dev/null
+  DeRez -only icns "${DMG_ICON}" > "${DMG_ICON_RSRC}"
+  Rez -append "${DMG_ICON_RSRC}" -o "${OUTPUT_DMG}"
+  SetFile -a C "${OUTPUT_DMG}" >/dev/null 2>&1 || true
+fi
 
 echo "Packaged ${OUTPUT_DMG}"
