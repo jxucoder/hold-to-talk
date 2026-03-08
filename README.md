@@ -15,7 +15,7 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 - **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
 
 <p align="center">
-  <img src="Resources/screenshot.png" width="680" alt="Hold to Talk screenshot">
+  <video src="Resources/demo.mp4" width="680" autoplay loop muted playsinline></video>
 </p>
 
 ## Install
@@ -31,6 +31,14 @@ Grab the latest notarized `DMG` or `ZIP` from [GitHub Releases](https://github.c
 ```bash
 brew install jxucoder/tap/holdtotalk
 ```
+
+### First launch
+
+On first launch, Hold to Talk will guide you through:
+
+1. Granting **Microphone**, **Accessibility**, and **Input Monitoring**
+2. Downloading the selected Whisper model if it is not already present
+3. Warming up the active model; the first transcription after launch or after switching models may be slightly slower
 
 ### Build from source
 
@@ -79,6 +87,7 @@ Open via menu bar → Settings:
 | Hotkey | Control | Control, Option, Shift, Right Option |
 | Cleanup | on | Toggle on/off — uses Apple Intelligence (macOS 26+) |
 | Cleanup prompt | (default) | Customizable instructions for how Apple Intelligence cleans up transcriptions |
+| Diagnostic logging | off | Toggle on/off — local troubleshooting logs only; transcript text is redacted by default |
 
 ## Architecture
 
@@ -107,6 +116,11 @@ macOS will prompt for:
 
 Detailed guide: [Permission System Notes](docs/permissions.md)
 
+## Notes
+
+- Secure text fields such as password inputs are intentionally blocked; Hold to Talk will not paste into protected fields.
+- Direct downloads support in-app updates through Sparkle. App Store builds use App Store distribution instead.
+
 ## Contributing
 
 Contributions are welcome! Please open an issue to discuss larger changes before submitting a PR.
@@ -118,7 +132,7 @@ Contributions are welcome! Please open an issue to discuss larger changes before
 
 ## Privacy
 
-Hold to Talk runs entirely on your Mac — no cloud transcription service, no accounts, and no in-app tracking. See the full [Privacy Policy](PRIVACY.md).
+Hold to Talk runs entirely on your Mac — no cloud transcription service, no accounts, and no in-app tracking. Optional diagnostic logs stay local, are off by default, and redact transcript text by default. See the full [Privacy Policy](PRIVACY.md).
 
 ## License
 
