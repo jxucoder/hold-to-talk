@@ -3,6 +3,11 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 1.0.14)"
+        required: true
 
 jobs:
   release:
@@ -12,12 +17,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve release metadata
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+            RELEASE_TAG="v${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+            RELEASE_TAG="${GITHUB_REF_NAME}"
+          fi
+
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
+
       - name: Test
         run: swift test
 
       - name: Stamp version
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           plutil -replace CFBundleVersion -string "$VERSION" Resources/Info.plist
           plutil -replace CFBundleShortVersionString -string "$VERSION" Resources/Info.plist
 
@@ -59,6 +76,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           files: |
             dist/HoldToTalk-v*.zip
             dist/HoldToTalk-v*.dmg
@@ -68,7 +86,6 @@ jobs:
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           ZIP_PATH="dist/HoldToTalk-v${VERSION}.zip"
           SHA256=$(shasum -a 256 "$ZIP_PATH" | awk '{print $1}')
 
@@ -95,9 +112,8 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           ZIP_PATH="dist/HoldToTalk-v${VERSION}.zip"
-          DOWNLOAD_URL="https://github.com/jxucoder/holdtotalk/releases/download/$GITHUB_REF_NAME/HoldToTalk-v${VERSION}.zip"
+          DOWNLOAD_URL="https://github.com/jxucoder/hold-to-talk/releases/download/${RELEASE_TAG}/HoldToTalk-v${VERSION}.zip"
           SIGN_UPDATE="$RUNNER_TEMP/sparkle/bin/sign_update"
 
           LENGTH=$(stat -f%z "$ZIP_PATH")
@@ -132,7 +148,7 @@ jobs:
           git add Resources/Info.plist
           cp "$RUNNER_TEMP/appcast.xml" docs/appcast.xml
           git add docs/appcast.xml
-          git commit -m "Update release metadata for $GITHUB_REF_NAME" || true
+          git commit -m "Update release metadata for ${RELEASE_TAG}" || true
           git push origin main
 
       - name: Clean up keychain
