@@ -30,8 +30,13 @@ func installToApplicationsAndRelaunch(
     installDirectories: [URL]? = nil,
     fileManager: FileManager = .default,
     workspaceOpen: (URL) -> Bool = { NSWorkspace.shared.open($0) },
-    terminate: @MainActor () -> Void = terminateCurrentApp
+    terminate: @MainActor () -> Void = terminateCurrentApp,
+    compatibility: SystemCompatibility = .current()
 ) -> AppInstallOutcome {
+    guard compatibility.isSupported else {
+        return .failure(message: compatibility.unsupportedInstallMessage)
+    }
+
     let sourceURL = canonicalURL(appURL)
     let appName = sourceURL.lastPathComponent
 

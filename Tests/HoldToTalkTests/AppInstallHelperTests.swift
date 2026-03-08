@@ -149,6 +149,49 @@ final class AppInstallHelperTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testInstallToApplicationsRejectsUnsupportedSystemBeforeCopy() throws {
+        let fileManager = FileManager.default
+        let root = try makeTemporaryDirectory()
+        defer { try? fileManager.removeItem(at: root) }
+
+        let home = root.appendingPathComponent("Home", isDirectory: true)
+        let downloads = root.appendingPathComponent("Downloads", isDirectory: true)
+        let applications = home.appendingPathComponent("Applications", isDirectory: true)
+        let sourceApp = downloads.appendingPathComponent("HoldToTalk.app", isDirectory: true)
+        let destinationApp = applications.appendingPathComponent("HoldToTalk.app", isDirectory: true)
+        try createFakeApp(at: sourceApp, marker: "fresh build")
+
+        let compatibility = SystemCompatibility(
+            requirements: SystemRequirements(
+                minimumMacOSVersion: OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0)
+            ),
+            currentMacOSVersion: OperatingSystemVersion(majorVersion: 14, minorVersion: 6, patchVersion: 0),
+            isAppleSiliconMac: true
+        )
+
+        let outcome = installToApplicationsAndRelaunch(
+            appURL: sourceApp,
+            homeDirectory: home,
+            installDirectories: [applications],
+            fileManager: fileManager,
+            workspaceOpen: { _ in true },
+            terminate: {},
+            compatibility: compatibility
+        )
+
+        switch outcome {
+        case .success(let destination):
+            XCTFail("Expected failure, got success at \(destination.path)")
+        case .failure(let message):
+            XCTAssertEqual(
+                message,
+                "Hold to Talk requires macOS 15+ and Apple Silicon. This Mac is running macOS 14.6."
+            )
+            XCTAssertFalse(fileManager.fileExists(atPath: destinationApp.path))
+        }
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let fileManager = FileManager.default
         let url = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

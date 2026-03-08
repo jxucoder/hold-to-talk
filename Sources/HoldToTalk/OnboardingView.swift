@@ -7,6 +7,7 @@ struct OnboardingView: View {
     @ObservedObject var engine: DictationEngine
     @ObservedObject var modelManager: ModelManager
     @Environment(\.dismiss) private var dismiss
+    private let systemCompatibility: SystemCompatibility
 
     @AppStorage(onboardingStepDefaultsKey) private var step = 0
     @State private var hasMicrophone = false
@@ -23,6 +24,7 @@ struct OnboardingView: View {
     init(engine: DictationEngine, modelManager: ModelManager) {
         self.engine = engine
         self.modelManager = modelManager
+        self.systemCompatibility = .current()
         #if DEBUG
         if let override = DebugFlags.onboardingStep {
             let clamped = max(0, min(override, 3))
@@ -99,7 +101,14 @@ struct OnboardingView: View {
     }
 
     private var onboardingWindowHeight: CGFloat {
-        step == 1 ? 576 : 520
+        switch step {
+        case 0:
+            return 620
+        case 1:
+            return 576
+        default:
+            return 520
+        }
     }
 
     // MARK: - Step 1: Welcome
@@ -136,12 +145,14 @@ struct OnboardingView: View {
             }
             .frame(maxWidth: 360, alignment: .leading)
 
+            systemRequirementsCard
+
             if !installed {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Install to /Applications", systemImage: "arrow.down.app.fill")
                         .font(.headline)
                         .foregroundStyle(.orange)
-                    Text("Hold to Talk works best when installed in /Applications.")
+                    Text("Hold to Talk works best when installed in /Applications. Requires \(systemCompatibility.requirements.summaryText).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button("Install to Applications") {
@@ -179,15 +190,30 @@ struct OnboardingView: View {
                 }
             }
 
-            Button(installed ? "Get Started" : "Install to /Applications First") {
+            Button(welcomeActionTitle(installed: installed)) {
                 step = 1
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(!installed)
+            .disabled(!installed || !systemCompatibility.isSupported)
             .padding(.top, 4)
+
+            if !systemCompatibility.isSupported {
+                Text(systemCompatibility.statusDetailText)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 360)
+            }
         }
         .padding(32)
+    }
+
+    private func welcomeActionTitle(installed: Bool) -> String {
+        if !systemCompatibility.isSupported {
+            return "This Mac Is Not Supported"
+        }
+        return installed ? "Get Started" : "Install to /Applications First"
     }
 
     private func featureRow(_ icon: String, _ text: String) -> some View {
@@ -196,6 +222,47 @@ struct OnboardingView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
             Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var systemRequirementsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("System requirements", systemImage: "desktopcomputer")
+                .font(.headline)
+
+            requirementRow(
+                title: "Requires",
+                value: systemCompatibility.requirements.summaryText
+            )
+            requirementRow(
+                title: "This Mac",
+                value: "macOS \(systemCompatibility.currentMacOSDisplayName)"
+            )
+
+            HStack(spacing: 8) {
+                Image(systemName: systemCompatibility.isSupported ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                Text(systemCompatibility.statusText)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(systemCompatibility.isSupported ? .green : .red)
+        }
+        .frame(maxWidth: 360, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill((systemCompatibility.isSupported ? Color.green : Color.red).opacity(0.08))
+        )
+    }
+
+    private func requirementRow(title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 58, alignment: .leading)
+            Text(value)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

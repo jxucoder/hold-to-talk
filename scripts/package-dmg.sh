@@ -48,6 +48,8 @@ APP_NAME="$(basename "${APP_BUNDLE}")"
 APP_ITEM_NAME="${APP_NAME}"
 BACKGROUND_NAME="installer-background.png"
 ICON_SOURCE="${REPO_ROOT}/Resources/HoldToTalk.icns"
+BACKGROUND_TEXTURE="${REPO_ROOT}/Resources/images/dmg-background.jpeg"
+MINIMUM_SYSTEM_VERSION="$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "${APP_BUNDLE}/Contents/Info.plist" 2>/dev/null || echo "15.0")"
 WINDOW_LEFT=140
 WINDOW_TOP=120
 WINDOW_WIDTH=720
@@ -78,11 +80,16 @@ trap cleanup EXIT
 mkdir -p "${STAGING_DIR}" "${BACKGROUND_DIR}" "$(dirname "${OUTPUT_DMG}")"
 cp -R "${APP_BUNDLE}" "${STAGING_DIR}/"
 
+if [[ ! -f "${BACKGROUND_TEXTURE}" ]]; then
+  BACKGROUND_TEXTURE="${REPO_ROOT}/Resources/dmg-background.jpeg"
+fi
+
 CLANG_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-clang-cache" \
 SWIFT_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-swift-cache" \
 swift "${SCRIPT_DIR}/render-dmg-background.swift" \
   "${BACKGROUND_PATH}" \
-  "${REPO_ROOT}/Resources/dmg-background.jpeg"
+  "${BACKGROUND_TEXTURE}" \
+  "${MINIMUM_SYSTEM_VERSION}"
 
 CLANG_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-clang-cache" \
 SWIFT_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-swift-cache" \
