@@ -174,7 +174,7 @@ on run argv
       set bgPicture to (POSIX file (mountPath & "/.background/" & backgroundName)) as alias
       set arrangement of opts to not arranged
       set icon size of opts to ${ICON_SIZE}
-      set text size of opts to 15
+      set text size of opts to 13
       set background picture of opts to bgPicture
 
       set position of item appItemName of container window to {${APP_POS_X}, ${APP_POS_Y}}

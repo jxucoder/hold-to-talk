@@ -6,17 +6,15 @@ let outputWidth: CGFloat = 720
 let outputHeight: CGFloat = 460
 let canvasRect = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
 
-let titleRect = CGRect(x: 70, y: 330, width: 580, height: 52)
-let subtitleRect = CGRect(x: 90, y: 294, width: 540, height: 24)
-let requirementRect = CGRect(x: 214, y: 254, width: 292, height: 30)
-let laneRect = CGRect(x: 72, y: 116, width: 576, height: 132)
-let leftStepRect = CGRect(x: 108, y: 222, width: 160, height: 24)
-let rightStepRect = CGRect(x: 452, y: 222, width: 170, height: 24)
-let footerRect = CGRect(x: 150, y: 42, width: 420, height: 18)
-let applicationsIconRect = CGRect(x: 469, y: 120, width: 126, height: 126)
-let arrowY: CGFloat = 180
-let arrowStartX: CGFloat = 286
-let arrowEndX: CGFloat = 434
+let titleRect = CGRect(x: 56, y: 330, width: 608, height: 52)
+let subtitleRect = CGRect(x: 88, y: 292, width: 544, height: 24)
+let requirementRect = CGRect(x: 212, y: 250, width: 296, height: 32)
+let leftDropRect = CGRect(x: 116, y: 146, width: 144, height: 102)
+let rightDropRect = CGRect(x: 460, y: 146, width: 144, height: 102)
+let footerRect = CGRect(x: 122, y: 34, width: 476, height: 18)
+let arrowY: CGFloat = 194
+let arrowStartX: CGFloat = 298
+let arrowEndX: CGFloat = 422
 
 guard CommandLine.arguments.count >= 2 else {
   fputs("usage: render-dmg-background.swift <output> [texture-image]\n", stderr)
@@ -116,16 +114,6 @@ func drawTopGlow(in rect: CGRect) {
   gradient?.draw(in: CGRect(x: rect.minX, y: rect.midY - 30, width: rect.width, height: rect.height / 2 + 30), angle: 90)
 }
 
-func drawLane(in rect: CGRect) {
-  let lanePath = NSBezierPath(roundedRect: laneRect, xRadius: 24, yRadius: 24)
-  NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 0.68).setFill()
-  lanePath.fill()
-
-  NSColor(calibratedRed: 0.863, green: 0.835, blue: 0.788, alpha: 0.85).setStroke()
-  lanePath.lineWidth = 1.0
-  lanePath.stroke()
-}
-
 func drawRequirementsBadge() {
   let badgePath = NSBezierPath(roundedRect: requirementRect, xRadius: 15, yRadius: 15)
   NSColor(calibratedRed: 0.949, green: 0.973, blue: 0.987, alpha: 0.96).setFill()
@@ -150,21 +138,28 @@ func drawRequirementsBadge() {
   requirements.draw(in: requirementRect.insetBy(dx: 8, dy: 6))
 }
 
-func drawApplicationsIcon() {
-  let backgroundPath = NSBezierPath(roundedRect: applicationsIconRect.insetBy(dx: -6, dy: -6), xRadius: 22, yRadius: 22)
-  NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 0.52).setFill()
-  backgroundPath.fill()
+func drawDropZone(in rect: CGRect, dashed: Bool) {
+  let shadowRect = rect.insetBy(dx: -8, dy: -8)
+  let shadowPath = NSBezierPath(roundedRect: shadowRect, xRadius: 26, yRadius: 26)
+  NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: dashed ? 0.42 : 0.34).setFill()
+  shadowPath.fill()
 
-  let applicationsIcon = NSWorkspace.shared.icon(forFile: "/Applications")
-  applicationsIcon.size = NSSize(width: applicationsIconRect.width, height: applicationsIconRect.height)
-  applicationsIcon.draw(
-    in: applicationsIconRect,
-    from: .zero,
-    operation: .sourceOver,
-    fraction: 0.92,
-    respectFlipped: false,
-    hints: [.interpolation: NSImageInterpolation.high]
-  )
+  let path = NSBezierPath(roundedRect: rect, xRadius: 22, yRadius: 22)
+  if dashed {
+    NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 0.52).setFill()
+    path.fill()
+    NSColor(calibratedRed: 0.808, green: 0.800, blue: 0.790, alpha: 0.9).setStroke()
+    path.lineWidth = 2.0
+    let pattern: [CGFloat] = [12, 8]
+    path.setLineDash(pattern, count: pattern.count, phase: 0)
+    path.stroke()
+  } else {
+    NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 0.76).setFill()
+    path.fill()
+    NSColor(calibratedRed: 0.902, green: 0.886, blue: 0.860, alpha: 0.92).setStroke()
+    path.lineWidth = 1.2
+    path.stroke()
+  }
 }
 
 func drawTitle(in rect: CGRect) {
@@ -189,24 +184,6 @@ func drawTitle(in rect: CGRect) {
     ]
   )
 
-  let leftStep = NSAttributedString(
-    string: "1. Drag this app",
-    attributes: [
-      .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
-      .foregroundColor: NSColor(calibratedRed: 0.396, green: 0.352, blue: 0.286, alpha: 0.96),
-      .paragraphStyle: style
-    ]
-  )
-
-  let rightStep = NSAttributedString(
-    string: "2. Open it there",
-    attributes: [
-      .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
-      .foregroundColor: NSColor(calibratedRed: 0.396, green: 0.352, blue: 0.286, alpha: 0.96),
-      .paragraphStyle: style
-    ]
-  )
-
   let footer = NSAttributedString(
     string: "Do not open the copy inside this disk image.",
     attributes: [
@@ -218,8 +195,6 @@ func drawTitle(in rect: CGRect) {
 
   title.draw(in: titleRect)
   subtitle.draw(in: subtitleRect)
-  leftStep.draw(in: leftStepRect)
-  rightStep.draw(in: rightStepRect)
   footer.draw(in: footerRect)
 }
 
@@ -256,9 +231,9 @@ func displayRequirement(_ version: String) -> String {
 
 drawBaseFill(in: canvasRect)
 drawTopGlow(in: canvasRect)
-drawLane(in: canvasRect)
 drawRequirementsBadge()
-drawApplicationsIcon()
+drawDropZone(in: leftDropRect, dashed: false)
+drawDropZone(in: rightDropRect, dashed: true)
 drawTitle(in: canvasRect)
 drawArrow(in: context)
 
