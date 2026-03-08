@@ -14,7 +14,6 @@ struct OnboardingView: View {
     @State private var downloadStarted = false
     @State private var hasShownAccessibilityPrompt = false
     @State private var hasShownInputMonitoringPrompt = UserDefaults.standard.bool(forKey: "hasPromptedInputMonitoring")
-    @State private var pendingGrantAllInputMonitoring = false
     @State private var isRequestingPermissions = false
     @State private var isInstallingToApplications = false
     @State private var installErrorMessage: String?
@@ -30,6 +29,38 @@ struct OnboardingView: View {
             print("[debug] Starting onboarding at step \(clamped).")
         }
         #endif
+    }
+
+    private enum PermissionRequirement: Int, CaseIterable, Identifiable {
+        case microphone
+        case accessibility
+        case inputMonitoring
+
+        var id: Self { self }
+
+        var icon: String {
+            switch self {
+            case .microphone: "mic.fill"
+            case .accessibility: "hand.raised.fill"
+            case .inputMonitoring: "keyboard.fill"
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .microphone: "Microphone"
+            case .accessibility: "Accessibility"
+            case .inputMonitoring: "Input Monitoring"
+            }
+        }
+
+        var subtitle: String {
+            switch self {
+            case .microphone: "Record your voice for transcription."
+            case .accessibility: "Paste text into the app you are using."
+            case .inputMonitoring: "Listen for your hold-to-talk hotkey globally."
+            }
+        }
     }
 
     var body: some View {
@@ -166,16 +197,20 @@ struct OnboardingView: View {
 
     // MARK: - Step 2: Permissions
 
-    private var hasCorePermissions: Bool {
-        hasMicrophone && hasAccessibility
-    }
-
     private var hasAllPermissions: Bool {
-        hasCorePermissions && hasInputMonitoring
+        hasMicrophone && hasAccessibility && hasInputMonitoring
     }
 
     private var permissionsGrantedCount: Int {
         [hasMicrophone, hasAccessibility, hasInputMonitoring].filter { $0 }.count
+    }
+
+    private var completedPermissions: [PermissionRequirement] {
+        PermissionRequirement.allCases.filter(isGranted(_:))
+    }
+
+    private var currentPermission: PermissionRequirement? {
+        PermissionRequirement.allCases.first(where: { !isGranted($0) })
     }
 
     private var microphoneActionTitle: String {
@@ -201,7 +236,7 @@ struct OnboardingView: View {
             Text("Permissions")
                 .font(.title2.bold())
 
-            Text("Grant access in one click. If macOS requires manual approval, we’ll open the right System Settings page.")
+            Text("Grant the required permissions one at a time. This keeps the macOS prompts clear and predictable.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -227,62 +262,35 @@ struct OnboardingView: View {
             )
             .frame(maxWidth: 380)
 
-            Button(hasAllPermissions ? "All Permissions Granted" : "Grant All Permissions") {
-                requestAllPermissions()
+            if !completedPermissions.isEmpty {
+                VStack(spacing: 10) {
+                    ForEach(completedPermissions) { permission in
+                        completedPermissionRow(permission)
+                    }
+                }
+                .frame(maxWidth: 380)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(hasAllPermissions || isRequestingPermissions)
 
-            VStack(spacing: 12) {
-                permissionRow(
-                    icon: "mic.fill",
-                    title: "Microphone",
-                    subtitle: "Record your voice for transcription",
-                    granted: hasMicrophone,
-                    actionTitle: microphoneActionTitle
-                ) {
-                    guard !isRequestingPermissions else { return }
-                    isRequestingPermissions = true
-                    requestMicrophonePermission { [self] in
-                        refreshPermissions()
-                        isRequestingPermissions = false
-                    }
+            if let currentPermission {
+                currentPermissionCard(currentPermission)
+            } else {
+                VStack(spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.green)
+                    Text("All permissions granted")
+                        .font(.headline)
+                    Text("You can continue to model setup.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-
-                permissionRow(
-                    icon: "hand.raised.fill",
-                    title: "Accessibility",
-                    subtitle: "Paste text into the active app",
-                    granted: hasAccessibility,
-                    actionTitle: accessibilityActionTitle
-                ) {
-                    guard !isRequestingPermissions else { return }
-                    isRequestingPermissions = true
-                    requestAccessibilityPermission()
-                    refreshPermissions()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        isRequestingPermissions = false
-                    }
-                }
-
-                permissionRow(
-                    icon: "keyboard.fill",
-                    title: "Input Monitoring",
-                    subtitle: "Listen for your hotkey globally",
-                    granted: hasInputMonitoring,
-                    actionTitle: inputMonitoringActionTitle
-                ) {
-                    guard !isRequestingPermissions else { return }
-                    isRequestingPermissions = true
-                    requestInputMonitoringPermission()
-                    refreshPermissions()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        isRequestingPermissions = false
-                    }
-                }
+                .frame(maxWidth: 380)
+                .padding(18)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.green.opacity(0.08))
+                )
             }
-            .padding(.horizontal, 16)
 
             if isRequestingPermissions {
                 HStack(spacing: 8) {
@@ -294,7 +302,7 @@ struct OnboardingView: View {
                 }
             }
 
-            if hasShownInputMonitoringPrompt && !hasInputMonitoring {
+            if currentPermission == .inputMonitoring && hasShownInputMonitoringPrompt && !hasInputMonitoring {
                 Text("Input Monitoring will turn green automatically once macOS confirms it. This can take a moment after approval.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -302,28 +310,20 @@ struct OnboardingView: View {
                     .frame(maxWidth: 380)
             }
 
-            if !hasAllPermissions {
-                Button("Open Missing in System Settings") {
-                    openFirstMissingPermissionSettings()
-                }
-                .buttonStyle(.bordered)
-                .disabled(isRequestingPermissions)
-            }
-
             Button("Continue") {
                 step = 2
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(!hasCorePermissions)
+            .disabled(!hasAllPermissions)
             .padding(.top, 8)
 
-            if !hasCorePermissions {
-                Text("Grant Microphone and Accessibility to continue")
+            if !hasAllPermissions, let currentPermission {
+                Text("Finish \(currentPermission.title) before continuing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else if !hasInputMonitoring {
-                Text("You can continue now. Input Monitoring will greenify automatically once macOS applies the change.")
+            } else {
+                Text("All required permissions are ready.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -338,6 +338,8 @@ struct OnboardingView: View {
                     hasAccessibility = true
                     hasInputMonitoring = true
                     engine.hasAccessibility = true
+                    engine.hasMicrophone = true
+                    engine.hasInputMonitoring = true
                     step = 2
                 }
                 .buttonStyle(.bordered)
@@ -348,57 +350,68 @@ struct OnboardingView: View {
         }
         .padding(32)
         .task {
-            // Structured concurrency replaces Timer — auto-cancels when view disappears
             refreshPermissions()
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
                 refreshPermissions()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             isRequestingPermissions = false
             refreshPermissions()
-            continueGrantAllFlowIfNeeded()
         }
     }
 
-    private func permissionRow(
-        icon: String,
-        title: String,
-        subtitle: String,
-        granted: Bool,
-        actionTitle: String = "Grant",
-        action: @escaping () -> Void
-    ) -> some View {
+    private func currentPermissionCard(_ permission: PermissionRequirement) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: permission.icon)
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(permission.title)
+                        .font(.headline)
+                    Text(permission.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Button(permissionActionTitle(for: permission)) {
+                requestPermission(permission)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(isRequestingPermissions)
+        }
+        .frame(maxWidth: 380, alignment: .leading)
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.secondary.opacity(0.08))
+        )
+    }
+
+    private func completedPermissionRow(_ permission: PermissionRequirement) -> some View {
         HStack(spacing: 14) {
-            Image(systemName: icon)
+            Image(systemName: "checkmark.circle.fill")
                 .font(.title3)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.green)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(permission.title)
                     .font(.headline)
-                Text(subtitle)
+                Text("Granted")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            if granted {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.green)
-            } else {
-                Button(actionTitle) { action() }
-                    .controlSize(.small)
             }
         }
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(granted ? Color.green.opacity(0.06) : Color.secondary.opacity(0.06))
+                .fill(Color.green.opacity(0.06))
         )
     }
 
@@ -581,6 +594,7 @@ struct OnboardingView: View {
         }
         .padding(32)
         .onAppear {
+            engine.prewarmTranscriber()
             hotkeyTester.install(for: resolvedHotkey)
         }
         .onDisappear {
@@ -638,54 +652,53 @@ struct OnboardingView: View {
             || error.localizedCaseInsensitiveContains("Model variant unavailable")
     }
 
-    private func requestAllPermissions() {
-        guard !isRequestingPermissions else { return }
-        isRequestingPermissions = true
-        pendingGrantAllInputMonitoring = false
-        requestMicrophonePermission(openSettings: false) {
-            refreshPermissions()
-
-            guard hasMicrophone else {
-                openSystemSettings("Privacy_Microphone")
-                isRequestingPermissions = false
-                return
-            }
-
-            requestAccessibilityPermission(openSettings: false)
-            refreshPermissions()
-
-            guard hasAccessibility else {
-                // Avoid stacked prompts: continue with Input Monitoring after user returns.
-                pendingGrantAllInputMonitoring = true
-                openSystemSettings("Privacy_Accessibility")
-                isRequestingPermissions = false
-                return
-            }
-
-            requestInputMonitoringPermission(openSettings: false)
-            refreshPermissions()
-            if !hasInputMonitoring {
-                openSystemSettings("Privacy_ListenEvent")
-            }
-            isRequestingPermissions = false
+    private func isGranted(_ permission: PermissionRequirement) -> Bool {
+        switch permission {
+        case .microphone:
+            hasMicrophone
+        case .accessibility:
+            hasAccessibility
+        case .inputMonitoring:
+            hasInputMonitoring
         }
     }
 
-    private func continueGrantAllFlowIfNeeded() {
-        guard pendingGrantAllInputMonitoring else { return }
-
-        if !hasAccessibility {
-            return
+    private func permissionActionTitle(for permission: PermissionRequirement) -> String {
+        switch permission {
+        case .microphone:
+            microphoneActionTitle
+        case .accessibility:
+            accessibilityActionTitle
+        case .inputMonitoring:
+            inputMonitoringActionTitle
         }
+    }
 
+    private func requestPermission(_ permission: PermissionRequirement) {
+        guard !isRequestingPermissions else { return }
         isRequestingPermissions = true
-        pendingGrantAllInputMonitoring = false
-        requestInputMonitoringPermission(openSettings: false)
-        refreshPermissions()
-        if !hasInputMonitoring {
-            openSystemSettings("Privacy_ListenEvent")
+
+        switch permission {
+        case .microphone:
+            requestMicrophonePermission {
+                refreshPermissions()
+                isRequestingPermissions = false
+            }
+        case .accessibility:
+            requestAccessibilityPermission()
+            refreshPermissions()
+            finishPermissionRequestAfterDelay()
+        case .inputMonitoring:
+            requestInputMonitoringPermission()
+            refreshPermissions()
+            finishPermissionRequestAfterDelay()
         }
-        isRequestingPermissions = false
+    }
+
+    private func finishPermissionRequestAfterDelay() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            isRequestingPermissions = false
+        }
     }
 
     private func requestMicrophonePermission(openSettings: Bool = true, completion: (() -> Void)? = nil) {
@@ -738,23 +751,7 @@ struct OnboardingView: View {
         }
     }
 
-    private func openFirstMissingPermissionSettings() {
-        if !hasAccessibility {
-            openSystemSettings("Privacy_Accessibility")
-            return
-        }
-        if !hasInputMonitoring {
-            openSystemSettings("Privacy_ListenEvent")
-            return
-        }
-        if !hasMicrophone {
-            openSystemSettings("Privacy_Microphone")
-        }
-    }
-
     private func refreshPermissions() {
-        // Delegate to the engine — single source of truth for permission state.
-        // Mirror the results into local @State vars that drive this view's UI.
         engine.refreshPermissionSnapshot()
         hasMicrophone = engine.hasMicrophone
         hasAccessibility = engine.hasAccessibility

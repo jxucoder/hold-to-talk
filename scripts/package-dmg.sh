@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/package-dmg.sh --app-bundle <path> --output <path> --volume-name <name>
+EOF
+}
+
+APP_BUNDLE=""
+OUTPUT_DMG=""
+VOLUME_NAME=""
+
+while (($# > 0)); do
+  case "$1" in
+    --app-bundle)
+      APP_BUNDLE="$2"
+      shift 2
+      ;;
+    --output)
+      OUTPUT_DMG="$2"
+      shift 2
+      ;;
+    --volume-name)
+      VOLUME_NAME="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "error: unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "${APP_BUNDLE}" || -z "${OUTPUT_DMG}" || -z "${VOLUME_NAME}" ]]; then
+  usage >&2
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+APP_NAME="$(basename "${APP_BUNDLE}")"
+APP_ITEM_NAME="${APP_NAME}"
+BACKGROUND_NAME="installer-background.png"
+WINDOW_LEFT=140
+WINDOW_TOP=120
+WINDOW_WIDTH=720
+WINDOW_HEIGHT=460
+ICON_SIZE=128
+APP_POS_X=188
+APP_POS_Y=252
+APPS_POS_X=532
+APPS_POS_Y=252
+
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/holdtotalk-dmg.XXXXXX")"
+STAGING_DIR="${WORK_DIR}/staging"
+BACKGROUND_DIR="${STAGING_DIR}/.background"
+BACKGROUND_PATH="${BACKGROUND_DIR}/${BACKGROUND_NAME}"
+RW_DMG="${WORK_DIR}/temp.dmg"
+MOUNT_DIR=""
+APPLESCRIPT_FILE="${WORK_DIR}/style-dmg.applescript"
+DMG_DEVICE=""
+
+cleanup() {
+  if [[ -n "${DMG_DEVICE}" ]]; then
+    hdiutil detach "${DMG_DEVICE}" -quiet >/dev/null 2>&1 || true
+  fi
+  rm -rf "${WORK_DIR}"
+}
+trap cleanup EXIT
+
+mkdir -p "${STAGING_DIR}" "${BACKGROUND_DIR}" "$(dirname "${OUTPUT_DMG}")"
+cp -R "${APP_BUNDLE}" "${STAGING_DIR}/"
+ln -s /Applications "${STAGING_DIR}/Applications"
+
+CLANG_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-clang-cache" \
+SWIFT_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-swift-cache" \
+swift "${SCRIPT_DIR}/render-dmg-background.swift" \
+  "${BACKGROUND_PATH}" \
+  "${REPO_ROOT}/Resources/dmg-background.jpeg"
+
+STAGING_MB="$(du -sm "${STAGING_DIR}" | awk '{print $1}')"
+DMG_SIZE_MB=$((STAGING_MB + 32))
+
+rm -f "${OUTPUT_DMG}"
+hdiutil create \
+  -size "${DMG_SIZE_MB}m" \
+  -fs HFS+ \
+  -volname "${VOLUME_NAME}" \
+  -type UDIF \
+  -ov \
+  "${RW_DMG}" >/dev/null
+
+ATTACH_OUTPUT="$(
+  hdiutil attach \
+    -readwrite \
+    -noverify \
+    -noautoopen \
+    -nobrowse \
+    -mountrandom /Volumes \
+    "${RW_DMG}"
+)"
+
+DMG_DEVICE="$(printf '%s\n' "${ATTACH_OUTPUT}" | awk -F '\t' '/^\/dev\// {gsub(/[[:space:]]+$/, "", $1); print $1; exit}')"
+MOUNT_DIR="$(printf '%s\n' "${ATTACH_OUTPUT}" | awk -F '\t' '/Apple_HFS|APFS/ {print $3; exit}')"
+
+if [[ -z "${DMG_DEVICE}" || -z "${MOUNT_DIR}" ]]; then
+  echo "error: failed to locate mounted DMG device or mount directory" >&2
+  exit 1
+fi
+
+ditto "${STAGING_DIR}" "${MOUNT_DIR}"
+SetFile -a V "${MOUNT_DIR}/.background" >/dev/null 2>&1 || true
+SetFile -a V "${MOUNT_DIR}/.background/${BACKGROUND_NAME}" >/dev/null 2>&1 || true
+chflags hidden "${MOUNT_DIR}/.background" >/dev/null 2>&1 || true
+chflags hidden "${MOUNT_DIR}/.background/${BACKGROUND_NAME}" >/dev/null 2>&1 || true
+
+cat > "${APPLESCRIPT_FILE}" <<EOF
+on run argv
+  set volumeName to item 1 of argv
+  set appItemName to item 2 of argv
+  set backgroundName to item 3 of argv
+  set mountPath to item 4 of argv
+  set dsStorePath to quoted form of (mountPath & "/.DS_Store")
+  set theXOrigin to ${WINDOW_LEFT}
+  set theYOrigin to ${WINDOW_TOP}
+  set theWidth to ${WINDOW_WIDTH}
+  set theHeight to ${WINDOW_HEIGHT}
+  set theBottomRightX to (theXOrigin + theWidth)
+  set theBottomRightY to (theYOrigin + theHeight)
+
+  tell application "Finder"
+    tell disk volumeName
+      open
+      tell container window
+        set current view to icon view
+        set toolbar visible to false
+        set statusbar visible to false
+        set bounds to {theXOrigin, theYOrigin, theBottomRightX, theBottomRightY}
+      end tell
+
+      set opts to the icon view options of container window
+      set bgPicture to (POSIX file (mountPath & "/.background/" & backgroundName)) as alias
+      set arrangement of opts to not arranged
+      set icon size of opts to ${ICON_SIZE}
+      set text size of opts to 15
+      set background picture of opts to bgPicture
+
+      set position of item appItemName of container window to {${APP_POS_X}, ${APP_POS_Y}}
+      set position of item "Applications" of container window to {${APPS_POS_X}, ${APPS_POS_Y}}
+      try
+        set position of item ".background" of container window to {5000, 5000}
+      end try
+      close
+      open
+      delay 1
+      update without registering applications
+      tell container window
+        set bounds to {theXOrigin, theYOrigin, theBottomRightX - 10, theBottomRightY - 10}
+      end tell
+    end tell
+
+    delay 1
+
+    tell disk volumeName
+      tell container window
+        set bounds to {theXOrigin, theYOrigin, theBottomRightX, theBottomRightY}
+      end tell
+    end tell
+
+    set waitTime to 0
+    repeat while waitTime is less than 15
+      delay 1
+      if (do shell script "[ -f " & dsStorePath & " ] && echo yes || echo no") is "yes" then
+        exit repeat
+      end if
+      set waitTime to waitTime + 1
+    end repeat
+  end tell
+end run
+EOF
+
+VOLUME_ID="$(basename "${MOUNT_DIR}")"
+
+if ! osascript "${APPLESCRIPT_FILE}" "${VOLUME_ID}" "${APP_ITEM_NAME}" "${BACKGROUND_NAME}" "${MOUNT_DIR}"; then
+  echo "warning: Finder styling failed; falling back to a plain DMG layout." >&2
+fi
+
+if [[ ! -f "${MOUNT_DIR}/.DS_Store" ]]; then
+  echo "warning: Finder did not persist .DS_Store metadata; the DMG may open with default Finder layout." >&2
+fi
+
+chmod -Rf go-w "${MOUNT_DIR}" >/dev/null 2>&1 || true
+sync
+
+hdiutil detach "${DMG_DEVICE}" -quiet >/dev/null
+DMG_DEVICE=""
+
+hdiutil convert "${RW_DMG}" \
+  -format UDZO \
+  -imagekey zlib-level=9 \
+  -ov \
+  -o "${OUTPUT_DMG}" >/dev/null
+
+echo "Packaged ${OUTPUT_DMG}"

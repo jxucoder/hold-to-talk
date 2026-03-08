@@ -32,6 +32,7 @@ enum TranscriptionProfile: String, CaseIterable, Identifiable {
 /// Actor isolation eliminates data races on the mutable `whisper` property.
 actor Transcriber {
     private var whisper: WhisperKit?
+    private var loadTask: Task<WhisperKit, Error>?
     let modelSize: String
 
     init(modelSize: String = "small.en") {
@@ -40,8 +41,27 @@ actor Transcriber {
 
     func loadModel() async throws {
         guard whisper == nil else { return }
+
+        if let loadTask {
+            whisper = try await loadTask.value
+            return
+        }
+
         print("[transcriber] Loading \(modelSize)…")
-        whisper = try await WhisperKit(model: modelSize, downloadBase: ModelManager.modelBase)
+        let modelSize = self.modelSize
+        let task = Task {
+            try await WhisperKit(
+                model: modelSize,
+                downloadBase: ModelManager.modelBase,
+                verbose: false,
+                prewarm: true,
+                load: true
+            )
+        }
+        loadTask = task
+        defer { loadTask = nil }
+
+        whisper = try await task.value
         print("[transcriber] Ready.")
     }
 

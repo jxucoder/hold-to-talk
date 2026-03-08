@@ -123,9 +123,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git checkout main
+          plutil -replace CFBundleVersion -string "$VERSION" Resources/Info.plist
+          plutil -replace CFBundleShortVersionString -string "$VERSION" Resources/Info.plist
+          git add Resources/Info.plist
           cp "$RUNNER_TEMP/appcast.xml" docs/appcast.xml
           git add docs/appcast.xml
-          git commit -m "Update appcast.xml for $GITHUB_REF_NAME" || true
+          git commit -m "Update release metadata for $GITHUB_REF_NAME" || true
           git push origin main
 
       - name: Clean up keychain

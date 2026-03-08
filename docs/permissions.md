@@ -35,13 +35,14 @@ So the correct UX is:
 
 Use this sequence to test onboarding exactly as a first-time user:
 
-1. Install app into `/Applications`:
+1. Remove the installed app plus app-specific state:
+   - `make reset-fresh-test`
+   - `bash scripts/reset-fresh-test.sh`
+   - If `/Applications/HoldToTalk.app` is admin-owned: `sudo APP_USER=$USER bash scripts/reset-fresh-test.sh --yes`
+   - If the sandbox container under `~/Library/Containers/com.holdtotalk.app` survives with `Operation not permitted`, grant Full Disk Access to your terminal app and rerun
+2. Install app into `/Applications`:
    - `make install`
-2. Reset app-specific TCC permissions:
-   - `make permissions-reset`
-3. Optionally clear app prefs:
-   - `defaults delete com.holdtotalk.app 2>/dev/null || true`
-4. Launch from `/Applications/HoldToTalk.app`
+3. Launch from `/Applications/HoldToTalk.app`
 
 ## Why `/Applications` Matters
 

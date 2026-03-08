@@ -88,6 +88,7 @@ final class DictationEngine: ObservableObject {
     // Fix #14: keep a handle on the AX poll task so stop() can cancel it
     private var axPollTask: Task<Void, Never>?
     private var activationObserver: NSObjectProtocol?
+    private var transcriberWarmupTask: Task<Void, Never>?
 
     init() {
         let profile = WhisperModelInfo.deviceModelProfile()
@@ -117,6 +118,29 @@ final class DictationEngine: ObservableObject {
     func completeOnboarding() {
         onboardingComplete = true
         start()
+    }
+
+    func prewarmTranscriber() {
+        let activeTranscriber = ensureActiveTranscriber()
+        let modelSize = activeTranscriber.modelSize
+        transcriberWarmupTask?.cancel()
+        transcriberWarmupTask = Task { [weak self] in
+            do {
+                try await activeTranscriber.loadModel()
+            } catch {
+                print("[holdtotalk] Model pre-warm failed: \(error)")
+                guard let self else { return }
+                if self.transcriber?.modelSize == modelSize {
+                    self.transcriberWarmupTask = nil
+                }
+                return
+            }
+
+            guard let self else { return }
+            if self.transcriber?.modelSize == modelSize {
+                self.transcriberWarmupTask = nil
+            }
+        }
     }
 
     func start() {
@@ -168,16 +192,7 @@ final class DictationEngine: ObservableObject {
             .removeDuplicates()
             .sink { RecordingHUD.shared.update($0) }
 
-        Task.detached { [weak self, whisperModel] in
-            guard let self else { return }
-            let t = Transcriber(modelSize: whisperModel)
-            do {
-                try await t.loadModel()
-                await MainActor.run { self.transcriber = t }
-            } catch {
-                print("[holdtotalk] Model pre-warm failed: \(error)")
-            }
-        }
+        prewarmTranscriber()
 
         debugLog("[holdtotalk] Ready — hold [\(hotkeyChoice)] to dictate.")
     }
@@ -187,6 +202,8 @@ final class DictationEngine: ObservableObject {
         // Fix #14: cancel accessibility poll when the engine stops
         axPollTask?.cancel()
         axPollTask = nil
+        transcriberWarmupTask?.cancel()
+        transcriberWarmupTask = nil
         if let activationObserver {
             NotificationCenter.default.removeObserver(activationObserver)
         }
@@ -251,18 +268,7 @@ final class DictationEngine: ObservableObject {
         // Transcribe
         state = .transcribing
         // Rebuild transcriber if model changed
-        let currentModelSize = transcriber?.modelSize
-        if currentModelSize != whisperModel {
-            transcriber = Transcriber(modelSize: whisperModel)
-        }
-        guard let activeTranscriber = transcriber else {
-            debugLog("[holdtotalk] ⚠ Transcriber not ready — skipping.")
-            lastError = "Transcriber not ready"
-            state = .idle
-            recordingTargetAppPID = nil
-            recordingTargetBundleID = nil
-            return
-        }
+        let activeTranscriber = ensureActiveTranscriber()
         do {
             let transcribeStart = Date()
             let profile = resolvedTranscriptionProfile
@@ -332,6 +338,13 @@ final class DictationEngine: ObservableObject {
 
     private var resolvedHotkey: HotkeyManager.Hotkey {
         HotkeyManager.Hotkey(rawValue: hotkeyChoice) ?? .ctrl
+    }
+
+    private func ensureActiveTranscriber() -> Transcriber {
+        if transcriber?.modelSize != whisperModel {
+            transcriber = Transcriber(modelSize: whisperModel)
+        }
+        return transcriber!
     }
 
     private var resolvedTranscriptionProfile: TranscriptionProfile {

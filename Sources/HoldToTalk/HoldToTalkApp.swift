@@ -4,6 +4,10 @@ import AVFoundation
 import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    var openOnboardingHandler: (() -> Void)?
+    private var pendingInitialOnboardingOpen = false
+    private var hasOpenedInitialOnboarding = false
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         truncateDebugLogIfNeeded()
         #if DEBUG
@@ -14,6 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("[debug] Onboarding state reset.")
         }
         #endif
+
+        if shouldOpenInitialOnboarding {
+            pendingInitialOnboardingOpen = true
+            flushPendingInitialOnboardingOpen()
+        }
 
         if !isInstalledInApplicationsFolder() && !UserDefaults.standard.bool(forKey: "dismissedInstallPrompt") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -58,6 +67,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
+
+    func setOpenOnboardingHandler(_ handler: @escaping () -> Void) {
+        openOnboardingHandler = handler
+        flushPendingInitialOnboardingOpen()
+    }
+
+    private var shouldOpenInitialOnboarding: Bool {
+        #if DEBUG
+        if DebugFlags.forceOnboarding { return true }
+        #endif
+        return !UserDefaults.standard.bool(forKey: "onboardingComplete")
+    }
+
+    private func flushPendingInitialOnboardingOpen() {
+        guard pendingInitialOnboardingOpen,
+              !hasOpenedInitialOnboarding,
+              let openOnboardingHandler else { return }
+        pendingInitialOnboardingOpen = false
+        hasOpenedInitialOnboarding = true
+        DispatchQueue.main.async {
+            openOnboardingHandler()
+        }
+    }
 }
 
 @main
@@ -75,109 +107,25 @@ struct HoldToTalkApp: App {
     }
 
     var body: some Scene {
+        let _ = configureAppDelegate()
+
         MenuBarExtra {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Hold to Talk")
-                    .font(.headline)
-                    .padding(.bottom, 2)
-
-                label
-
-                if !isInstalledInApplicationsFolder() {
-                    Button {
-                        showInstallAlert()
-                    } label: {
-                        Label("Move to Applications…", systemImage: "arrow.down.app.fill")
-                    }
-                    .font(.caption)
-                    Divider()
-                }
-
-                if !engine.hasMicrophone || !engine.hasAccessibility || !engine.hasInputMonitoring {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if !engine.hasMicrophone {
-                            permissionWarningRow("Microphone not granted")
-                            Button("Grant Microphone…") {
-                                AVCaptureDevice.requestAccess(for: .audio) { _ in
-                                    Task { @MainActor in
-                                        openSystemSettings("Privacy_Microphone")
-                                    }
-                                }
-                            }
-                            .font(.caption)
-                        }
-
-                        if !engine.hasAccessibility {
-                            permissionWarningRow("Accessibility not granted")
-                            Button("Grant Accessibility…") {
-                                let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                                _ = AXIsProcessTrustedWithOptions(opts)
-                                openSystemSettings("Privacy_Accessibility")
-                            }
-                            .font(.caption)
-                        }
-
-                        if !engine.hasInputMonitoring {
-                            permissionWarningRow("Input Monitoring not granted")
-                            Button("Grant Input Monitoring…") {
-                                _ = CGRequestListenEventAccess()
-                                openSystemSettings("Privacy_ListenEvent")
-                            }
-                            .font(.caption)
-                        }
-
-                        Button("Open Onboarding…") {
-                            openWindow(id: "onboarding")
-                            NSApp.activate(ignoringOtherApps: true)
-                        }
-                        .font(.caption)
-                    }
-                }
-                Divider()
-
-                if let error = engine.lastError {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                            .lineLimit(2)
-                    }
-                    .padding(.vertical, 2)
-                    Divider()
-                }
-
-                if !engine.lastCleanText.isEmpty {
-                    Button("Copy Last Transcription") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(engine.lastCleanText, forType: .string)
-                    }
-                    .font(.caption)
-                    Divider()
-                }
-
-                Button("Settings…") {
-                    openWindow(id: "settings")
-                    NSApp.activate(ignoringOtherApps: true)
-                }
-                .keyboardShortcut(",")
-
-                Button("Quit") { NSApplication.shared.terminate(nil) }
-                    .keyboardShortcut("q")
+            if shouldShowOnboarding {
+                onboardingMenu
+            } else {
+                mainMenu
             }
-            .padding(8)
-            .frame(width: 220)
         } label: {
             Label("Hold to Talk", systemImage: engine.state.icon)
         }
 
         Window("Welcome to Hold to Talk", id: "onboarding") {
             OnboardingView(engine: engine, modelManager: engine.modelManager)
+                .background(OnboardingWindowConfigurator(isBlocking: shouldShowOnboarding))
         }
         .windowResizability(.contentSize)
         .windowStyle(.hiddenTitleBar)
-        .defaultLaunchBehavior(shouldShowOnboarding ? .presented : .suppressed)
+        .defaultLaunchBehavior(.suppressed)
 
         Window("Hold to Talk Settings", id: "settings") {
             SettingsView(engine: engine, modelManager: engine.modelManager, updater: updaterController.updater)
@@ -193,6 +141,123 @@ struct HoldToTalkApp: App {
             systemImage: engine.state.icon
         )
         .font(.headline)
+    }
+
+    private var onboardingMenu: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Hold to Talk")
+                .font(.headline)
+
+            Text("Finish onboarding to enable dictation.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Button("Open Onboarding…") {
+                openOnboardingWindow()
+            }
+            .font(.caption)
+
+            Divider()
+
+            Button("Quit") { NSApplication.shared.terminate(nil) }
+                .keyboardShortcut("q")
+        }
+        .padding(8)
+        .frame(width: 220)
+    }
+
+    private var mainMenu: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Hold to Talk")
+                .font(.headline)
+                .padding(.bottom, 2)
+
+            label
+
+            if !isInstalledInApplicationsFolder() {
+                Button {
+                    showInstallAlert()
+                } label: {
+                    Label("Move to Applications…", systemImage: "arrow.down.app.fill")
+                }
+                .font(.caption)
+                Divider()
+            }
+
+            if !engine.hasMicrophone || !engine.hasAccessibility || !engine.hasInputMonitoring {
+                VStack(alignment: .leading, spacing: 4) {
+                    if !engine.hasMicrophone {
+                        permissionWarningRow("Microphone not granted")
+                        Button("Grant Microphone…") {
+                            AVCaptureDevice.requestAccess(for: .audio) { _ in
+                                Task { @MainActor in
+                                    openSystemSettings("Privacy_Microphone")
+                                }
+                            }
+                        }
+                        .font(.caption)
+                    }
+
+                    if !engine.hasAccessibility {
+                        permissionWarningRow("Accessibility not granted")
+                        Button("Grant Accessibility…") {
+                            let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                            _ = AXIsProcessTrustedWithOptions(opts)
+                            openSystemSettings("Privacy_Accessibility")
+                        }
+                        .font(.caption)
+                    }
+
+                    if !engine.hasInputMonitoring {
+                        permissionWarningRow("Input Monitoring not granted")
+                        Button("Grant Input Monitoring…") {
+                            _ = CGRequestListenEventAccess()
+                            openSystemSettings("Privacy_ListenEvent")
+                        }
+                        .font(.caption)
+                    }
+
+                    Button("Open Onboarding…") {
+                        openOnboardingWindow()
+                    }
+                    .font(.caption)
+                }
+            }
+            Divider()
+
+            if let error = engine.lastError {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                }
+                .padding(.vertical, 2)
+                Divider()
+            }
+
+            if !engine.lastCleanText.isEmpty {
+                Button("Copy Last Transcription") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(engine.lastCleanText, forType: .string)
+                }
+                .font(.caption)
+                Divider()
+            }
+
+            Button("Settings…") {
+                openWindow(id: "settings")
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            .keyboardShortcut(",")
+
+            Button("Quit") { NSApplication.shared.terminate(nil) }
+                .keyboardShortcut("q")
+        }
+        .padding(8)
+        .frame(width: 220)
     }
 
     private func permissionWarningRow(_ text: String) -> some View {
@@ -232,6 +297,18 @@ struct HoldToTalkApp: App {
         }
     }
 
+    @MainActor
+    private func openOnboardingWindow() {
+        openWindow(id: "onboarding")
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func configureAppDelegate() {
+        appDelegate.setOpenOnboardingHandler {
+            openOnboardingWindow()
+        }
+    }
+
     /// Loads the app icon from the .app bundle or from the source tree for debug runs.
     static let appIcon: NSImage? = {
         if let bundled = Bundle.main.image(forResource: "HoldToTalk") { return bundled }
@@ -245,4 +322,56 @@ struct HoldToTalkApp: App {
         if let img = NSImage(contentsOf: url), img.isValid { return img }
         return nil
     }()
+}
+
+private struct OnboardingWindowConfigurator: NSViewRepresentable {
+    let isBlocking: Bool
+
+    func makeNSView(context: Context) -> WindowProbeView {
+        let view = WindowProbeView()
+        view.onResolve = { window in
+            context.coordinator.configure(window: window, isBlocking: isBlocking)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: WindowProbeView, context: Context) {
+        nsView.onResolve = { window in
+            context.coordinator.configure(window: window, isBlocking: isBlocking)
+        }
+        context.coordinator.configure(window: nsView.window, isBlocking: isBlocking)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    final class Coordinator {
+        func configure(window: NSWindow?, isBlocking: Bool) {
+            guard let window else { return }
+
+            var styleMask = window.styleMask
+            if isBlocking {
+                styleMask.remove([.closable, .miniaturizable])
+            } else {
+                styleMask.insert([.closable, .miniaturizable])
+            }
+            window.styleMask = styleMask
+
+            let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+            for button in buttons {
+                window.standardWindowButton(button)?.isHidden = isBlocking
+                window.standardWindowButton(button)?.isEnabled = !isBlocking
+            }
+        }
+    }
+}
+
+private final class WindowProbeView: NSView {
+    var onResolve: ((NSWindow?) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        onResolve?(window)
+    }
 }

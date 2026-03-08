@@ -1,5 +1,5 @@
 .PHONY: build install verify package package-zip package-dmg \
- notarize notarize-app notarize-dmg release permissions-reset run clean
+ notarize notarize-app notarize-dmg release permissions-reset reset-fresh-test run clean
 
 APP_NAME := HoldToTalk
 APP_BUNDLE := .build/$(APP_NAME).app
@@ -59,16 +59,10 @@ package-zip: build
 
 package-dmg: build
 	@mkdir -p "$(DIST_DIR)"
-	@rm -rf "$(DMG_STAGING)"
-	@mkdir -p "$(DMG_STAGING)"
-	@cp -R "$(APP_BUNDLE)" "$(DMG_STAGING)/"
-	@ln -s /Applications "$(DMG_STAGING)/Applications"
-	@hdiutil create \
-		-volname "$(DMG_VOLUME_NAME)" \
-		-srcfolder "$(DMG_STAGING)" \
-		-ov -format UDZO "$(DMG_PATH)" >/dev/null
-	@rm -rf "$(DMG_STAGING)"
-	@echo "Packaged $(DMG_PATH)"
+	@bash scripts/package-dmg.sh \
+		--app-bundle "$(APP_BUNDLE)" \
+		--volume-name "$(DMG_VOLUME_NAME)" \
+		--output "$(DMG_PATH)"
 
 notarize: notarize-app
 
@@ -103,6 +97,9 @@ permissions-reset:
 	@tccutil reset Accessibility "$(BUNDLE_ID)" || true
 	@tccutil reset ListenEvent "$(BUNDLE_ID)" || true
 	@echo "Done. Launch app from /Applications to re-run onboarding prompts."
+
+reset-fresh-test:
+	@APP_USER="$(APP_USER)" bash scripts/reset-fresh-test.sh $(ARGS)
 
 run: build
 	open "$(APP_BUNDLE)"
