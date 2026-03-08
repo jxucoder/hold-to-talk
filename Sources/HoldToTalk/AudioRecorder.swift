@@ -11,6 +11,8 @@ final class AudioRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var isPrepared = false
     private var tapInstalled = false
+    private var smoothedLevel: Float = 0
+    var levelHandler: (@Sendable (Float) -> Void)?
 
     /// Pre-warms the audio engine so subsequent start() calls are near-instant.
     /// Call once at app startup. Safe to call multiple times.
@@ -27,7 +29,10 @@ final class AudioRecorder: @unchecked Sendable {
     func start() throws {
         lock.lock()
         buffers.removeAll()
+        smoothedLevel = 0
+        let levelHandler = self.levelHandler
         lock.unlock()
+        levelHandler?(0)
 
         let input = engine.inputNode
         let nativeFormat = input.outputFormat(forBus: 0)
@@ -36,9 +41,16 @@ final class AudioRecorder: @unchecked Sendable {
             guard let self else { return }
             // Fix #8: use safe conditional cast — force-cast crashes if copy() returns unexpected type
             guard let copied = buffer.copy() as? AVAudioPCMBuffer else { return }
+            let normalizedLevel = Self.normalizedLevel(for: copied)
+            let callbackLevel: Float
+            let handler: (@Sendable (Float) -> Void)?
             self.lock.lock()
             self.buffers.append(copied)
+            self.smoothedLevel = max(normalizedLevel, self.smoothedLevel * 0.82)
+            callbackLevel = self.smoothedLevel
+            handler = self.levelHandler
             self.lock.unlock()
+            handler?(callbackLevel)
         }
         tapInstalled = true
 
@@ -65,7 +77,10 @@ final class AudioRecorder: @unchecked Sendable {
         lock.lock()
         let captured = buffers
         buffers.removeAll()
+        smoothedLevel = 0
+        let levelHandler = self.levelHandler
         lock.unlock()
+        levelHandler?(0)
 
         guard !captured.isEmpty else { return [] }
         return resample(buffers: captured)
@@ -126,5 +141,23 @@ final class AudioRecorder: @unchecked Sendable {
 
         return Array(UnsafeBufferPointer(start: output.floatChannelData?[0],
                                          count: Int(output.frameLength)))
+    }
+
+    private static func normalizedLevel(for buffer: AVAudioPCMBuffer) -> Float {
+        guard let channelData = buffer.floatChannelData?[0] else { return 0 }
+        let frameCount = Int(buffer.frameLength)
+        guard frameCount > 0 else { return 0 }
+
+        var sumSquares: Float = 0
+        for index in 0..<frameCount {
+            let sample = channelData[index]
+            sumSquares += sample * sample
+        }
+
+        let rms = sqrt(sumSquares / Float(frameCount))
+        guard rms.isFinite else { return 0 }
+
+        let decibels = 20 * log10(max(rms, 0.000_01))
+        return max(0, min(1, (decibels + 50) / 50))
     }
 }

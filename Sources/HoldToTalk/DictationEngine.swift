@@ -46,6 +46,7 @@ final class DictationEngine: ObservableObject {
     @Published var lastRawText: String = ""
     @Published var lastCleanText: String = ""
     @Published var lastInsertDebug: String = ""
+    @Published var recordingLevel: Float = 0
     /// Brief user-visible error message; cleared on next successful dictation.
     @Published var lastError: String?
     @Published var hasMicrophone: Bool = {
@@ -94,6 +95,11 @@ final class DictationEngine: ObservableObject {
         let profile = WhisperModelInfo.deviceModelProfile()
         availableWhisperModels = profile.available
         recommendedWhisperModelID = profile.recommendedID
+        recorder.levelHandler = { [weak self] level in
+            DispatchQueue.main.async {
+                self?.recordingLevel = level
+            }
+        }
 
         // Migrate legacy IDs and guarantee current selection is device-supported.
         if let stored = UserDefaults.standard.string(forKey: whisperModelDefaultsKey) {
@@ -193,9 +199,13 @@ final class DictationEngine: ObservableObject {
         hotkeyManager.update(hotkey: resolvedHotkey)
         hotkeyManager.start()
 
-        hudBinding = $state
-            .removeDuplicates()
-            .sink { RecordingHUD.shared.update($0) }
+        hudBinding = Publishers.CombineLatest(
+            $state.removeDuplicates(),
+            $recordingLevel
+        )
+        .sink { state, level in
+            RecordingHUD.shared.update(state, level: state == .recording ? CGFloat(level) : 0)
+        }
 
         prewarmTranscriber()
 
@@ -217,6 +227,7 @@ final class DictationEngine: ObservableObject {
         // Fix #3: cancel HUD subscription to prevent leaks on re-creation
         hudBinding?.cancel()
         hudBinding = nil
+        recordingLevel = 0
     }
 
     func resetForFreshOnboarding() {
@@ -267,6 +278,7 @@ final class DictationEngine: ObservableObject {
         recordingTargetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         debugLog("[holdtotalk] Recording target: \(recordingTargetBundleID ?? "nil")")
         state = .recording
+        recordingLevel = 0
 
         // Fix #9: report microphone errors to the user instead of swallowing them
         do {
@@ -276,6 +288,7 @@ final class DictationEngine: ObservableObject {
             debugLog("[holdtotalk] ⚠ Microphone failed to start: \(error)")
             lastError = error.localizedDescription
             state = .idle
+            recordingLevel = 0
             recordingTargetAppPID = nil
             recordingTargetBundleID = nil
             return
@@ -285,6 +298,7 @@ final class DictationEngine: ObservableObject {
     private func endRecording() async {
         guard state == .recording else { return }
         let audio = recorder.stop()
+        recordingLevel = 0
         guard !audio.isEmpty else {
             state = .idle
             lastError = nil
@@ -364,6 +378,7 @@ final class DictationEngine: ObservableObject {
         }
 
         state = .idle
+        recordingLevel = 0
         recordingTargetAppPID = nil
         recordingTargetBundleID = nil
     }

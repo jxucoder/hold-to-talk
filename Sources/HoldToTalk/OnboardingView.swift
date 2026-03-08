@@ -12,7 +12,6 @@ struct OnboardingView: View {
     @State private var hasMicrophone = false
     @State private var hasAccessibility = false
     @State private var hasInputMonitoring = false
-    @State private var downloadStarted = false
     @AppStorage(accessibilityPromptedDefaultsKey) private var hasShownAccessibilityPrompt = false
     @AppStorage(inputMonitoringPromptedDefaultsKey) private var hasShownInputMonitoringPrompt = false
     @State private var isRequestingPermissions = false
@@ -427,6 +426,7 @@ struct OnboardingView: View {
 
     private var modelStep: some View {
         let selectableModels = engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels
+        let recommendedModelName = modelDisplayName(engine.recommendedWhisperModelID)
 
         return VStack(spacing: 20) {
             Text("Download Model")
@@ -437,6 +437,10 @@ struct OnboardingView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
+
+            Text("Recommended for this Mac: \(recommendedModelName)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Picker("Model", selection: $engine.whisperModel) {
                 ForEach(selectableModels) { model in
@@ -471,9 +475,10 @@ struct OnboardingView: View {
                     }
                 }
             } else {
-                Button("Download \(modelDisplayName(modelId))") {
+                Button(modelId == engine.recommendedWhisperModelID
+                    ? "Download Recommended Model"
+                    : "Download \(modelDisplayName(modelId))") {
                     modelManager.download(modelId)
-                    downloadStarted = true
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
@@ -489,7 +494,6 @@ struct OnboardingView: View {
                     Button("Use Recommended Model") {
                         engine.whisperModel = engine.recommendedWhisperModelID
                         modelManager.refreshDownloadStatus()
-                        startModelDownloadIfNeeded()
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -508,7 +512,6 @@ struct OnboardingView: View {
         .onAppear {
             modelManager.refreshDownloadStatus()
             ensureSupportedModelSelection()
-            startModelDownloadIfNeeded()
             warmUpSelectedModelIfReady()
         }
         .onChange(of: engine.whisperModel) {
@@ -648,16 +651,6 @@ struct OnboardingView: View {
         if !supportedIDs.contains(engine.whisperModel) {
             engine.whisperModel = engine.recommendedWhisperModelID
         }
-    }
-
-    private func startModelDownloadIfNeeded() {
-        let modelId = engine.whisperModel
-        guard !modelManager.downloaded.contains(modelId),
-              !modelManager.downloading.contains(modelId) else {
-            return
-        }
-        modelManager.download(modelId)
-        downloadStarted = true
     }
 
     private func warmUpSelectedModelIfReady() {

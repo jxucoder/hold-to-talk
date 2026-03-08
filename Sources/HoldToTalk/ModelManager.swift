@@ -8,12 +8,15 @@ struct WhisperModelInfo: Identifiable {
     let englishOnly: Bool
 
     static let defaultModelID = "large-v3_turbo"
+    static let repoPrefixes = ["openai_whisper-", "distil-whisper_"]
 
     /// Maps legacy IDs to WhisperKit-compatible variant names.
     static func normalizeModelID(_ id: String) -> String {
         switch id {
         case "large-v3-turbo":
             return "large-v3_turbo"
+        case "distil-large-v3-turbo":
+            return "distil-large-v3_turbo"
         default:
             return id
         }
@@ -29,23 +32,20 @@ struct WhisperModelInfo: Identifiable {
         )
     }
 
+    /// Converts a WhisperKit repo folder name into an app model ID.
+    static func modelID(fromRepoFolderName folderName: String) -> String? {
+        for prefix in repoPrefixes where folderName.hasPrefix(prefix) {
+            let suffix = String(folderName.dropFirst(prefix.count))
+            return normalizeDownloadedVariant(suffix)
+        }
+        return nil
+    }
+
     /// Converts WhisperKit support strings into app model IDs.
     static func modelID(fromSupportEntry rawEntry: String) -> String? {
         let entry = rawEntry.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !entry.isEmpty else { return nil }
-
-        // Support entries are typically "openai_whisper-<variant>".
-        if entry.hasPrefix("openai_whisper-") {
-            let suffix = String(entry.dropFirst("openai_whisper-".count))
-            return normalizeDownloadedVariant(suffix)
-        }
-
-        // Ignore distil variants for now; app UX currently targets openai variants only.
-        if entry.hasPrefix("distil-whisper_") {
-            return nil
-        }
-
-        return normalizeDownloadedVariant(entry)
+        return modelID(fromRepoFolderName: entry) ?? normalizeDownloadedVariant(entry)
     }
 
     /// Returns a device-aware model profile based on WhisperKit's support matrix.
@@ -79,6 +79,8 @@ struct WhisperModelInfo: Identifiable {
         .init(id: "small",           displayName: "Small",            sizeLabel: "~460 MB",  englishOnly: false),
         .init(id: "medium",          displayName: "Medium",           sizeLabel: "~1.5 GB",  englishOnly: false),
         .init(id: "medium.en",       displayName: "Medium (English)", sizeLabel: "~1.5 GB",  englishOnly: true),
+        .init(id: "distil-large-v3", displayName: "Distil Large V3 (English only)", sizeLabel: "~595 MB", englishOnly: true),
+        .init(id: "distil-large-v3_turbo", displayName: "Distil Large V3 Turbo (English only)", sizeLabel: "~600 MB", englishOnly: true),
         .init(id: "large-v3_turbo",  displayName: "Large V3 Turbo",  sizeLabel: "~1.6 GB",  englishOnly: false),
         .init(id: "large-v3-v20240930", displayName: "Large V3 (20240930)", sizeLabel: "~626 MB", englishOnly: false),
         .init(id: "large-v3-v20240930_turbo", displayName: "Large V3 (20240930 Turbo)", sizeLabel: "~632 MB", englishOnly: false),
@@ -122,10 +124,8 @@ final class ModelManager: ObservableObject {
 
         return contents.filter { dir in
             let name = dir.lastPathComponent
-            guard name.hasPrefix("openai_whisper-") else { return false }
-            let raw = String(name.dropFirst("openai_whisper-".count))
-            let normalized = WhisperModelInfo.normalizeDownloadedVariant(raw)
-            return normalized == normalizedID
+            guard let resolvedID = WhisperModelInfo.modelID(fromRepoFolderName: name) else { return false }
+            return resolvedID == normalizedID
         }
     }
 
@@ -144,9 +144,7 @@ final class ModelManager: ObservableObject {
             let melSpec = dir.appendingPathComponent("MelSpectrogram.mlmodelc")
             guard FileManager.default.fileExists(atPath: melSpec.path) else { continue }
 
-            if name.hasPrefix("openai_whisper-") {
-                let rawModelID = String(name.dropFirst("openai_whisper-".count))
-                let modelId = WhisperModelInfo.normalizeDownloadedVariant(rawModelID)
+            if let modelId = WhisperModelInfo.modelID(fromRepoFolderName: name) {
                 found.insert(modelId)
             }
         }
