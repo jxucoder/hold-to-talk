@@ -160,16 +160,18 @@ on run argv
       end tell
 
       set opts to the icon view options of container window
-      set bgPicture to (POSIX file (mountPath & "/.background/" & backgroundName)) as alias
       set arrangement of opts to not arranged
       set icon size of opts to ${ICON_SIZE}
       set text size of opts to 15
-      set background picture of opts to bgPicture
+      set background picture of opts to file (".background:" & backgroundName)
 
       set position of item appItemName of container window to {${APP_POS_X}, ${APP_POS_Y}}
       set position of item "Applications" of container window to {${APPS_POS_X}, ${APPS_POS_Y}}
       try
         set position of item ".background" of container window to {5000, 5000}
+      end try
+      try
+        set position of item ".VolumeIcon.icns" of container window to {5200, 5200}
       end try
       close
       open
