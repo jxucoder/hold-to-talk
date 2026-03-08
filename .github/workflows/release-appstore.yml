@@ -59,6 +59,32 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
 
+      - name: Install provisioning profile
+        env:
+          APPSTORE_PROVISIONING_PROFILE: ${{ secrets.APPSTORE_PROVISIONING_PROFILE }}
+        run: |
+          if [ -z "$APPSTORE_PROVISIONING_PROFILE" ]; then
+            echo "Missing APPSTORE_PROVISIONING_PROFILE secret" >&2
+            exit 1
+          fi
+
+          PROFILE_PATH="$RUNNER_TEMP/HoldToTalk.provisionprofile"
+          echo "$APPSTORE_PROVISIONING_PROFILE" | base64 --decode > "$PROFILE_PATH"
+
+          PROFILE_PLIST="$RUNNER_TEMP/HoldToTalk.provisionprofile.plist"
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+
+          APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$PROFILE_PLIST")
+          TEAM_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "$PROFILE_PLIST")
+
+          echo "APPSTORE_PROFILE_PATH=$PROFILE_PATH" >> "$GITHUB_ENV"
+          echo "APPSTORE_APPLICATION_IDENTIFIER=$APP_IDENTIFIER" >> "$GITHUB_ENV"
+          echo "APPSTORE_TEAM_IDENTIFIER=$TEAM_IDENTIFIER" >> "$GITHUB_ENV"
+
+          /usr/libexec/PlistBuddy -c "Print :Name" "$PROFILE_PLIST"
+          /usr/libexec/PlistBuddy -c "Print :UUID" "$PROFILE_PLIST"
+          echo "$APP_IDENTIFIER"
+
       - name: Build
         run: |
           APP_STORE=1 swift build -c release
@@ -70,6 +96,7 @@ jobs:
           cp Resources/Info.plist "$APP_BUNDLE/Contents/"
           cp Resources/HoldToTalk.icns "$APP_BUNDLE/Contents/Resources/"
           cp Resources/PrivacyInfo.xcprivacy "$APP_BUNDLE/Contents/Resources/"
+          cp "$APPSTORE_PROFILE_PATH" "$APP_BUNDLE/Contents/embedded.provisionprofile"
 
           if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework" ]; then
             echo "Unexpected Sparkle.framework in App Store bundle" >&2
@@ -83,16 +110,32 @@ jobs:
             echo "Unexpected SUPublicEDKey in App Store bundle" >&2
             exit 1
           fi
+          if [ ! -f "$APP_BUNDLE/Contents/embedded.provisionprofile" ]; then
+            echo "Missing embedded.provisionprofile in App Store bundle" >&2
+            exit 1
+          fi
 
       - name: Sign for App Store
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           IDENTITY="Apple Distribution: Jiarui Xu ($APPLE_TEAM_ID)"
+          APP_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_BUNDLE/Contents/Info.plist")
+          EXPECTED_APP_IDENTIFIER="${APPSTORE_TEAM_IDENTIFIER}.${APP_BUNDLE_ID}"
+
+          if [ "$APPSTORE_APPLICATION_IDENTIFIER" != "$EXPECTED_APP_IDENTIFIER" ]; then
+            echo "Provisioning profile app identifier '$APPSTORE_APPLICATION_IDENTIFIER' does not match expected '$EXPECTED_APP_IDENTIFIER'" >&2
+            exit 1
+          fi
+
+          ENTITLEMENTS_PATH="$RUNNER_TEMP/HoldToTalk.appstore.entitlements"
+          cp Resources/HoldToTalk.entitlements "$ENTITLEMENTS_PATH"
+          /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $APPSTORE_APPLICATION_IDENTIFIER" "$ENTITLEMENTS_PATH"
+          /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string $APPSTORE_TEAM_IDENTIFIER" "$ENTITLEMENTS_PATH"
 
           codesign -f --options runtime --timestamp \
             -s "$IDENTITY" \
-            --entitlements Resources/HoldToTalk.entitlements \
+            --entitlements "$ENTITLEMENTS_PATH" \
             "$APP_BUNDLE"
 
       - name: Package as .pkg
