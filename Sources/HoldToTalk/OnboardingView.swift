@@ -115,7 +115,7 @@ struct OnboardingView: View {
                 Text("Welcome to Hold to Talk")
                     .font(.title.bold())
 
-                Text("Private voice dictation on your Mac.\nHold a key, speak, release — text appears wherever your cursor is.")
+                Text("Free, open-source voice dictation for your Mac.\nHold a key, speak, release — text appears wherever your cursor is, and your audio stays local and safe.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -130,9 +130,9 @@ struct OnboardingView: View {
             )
 
             VStack(alignment: .leading, spacing: 8) {
-                featureRow("lock.fill", "Fully local: audio never leaves your Mac")
-                featureRow("keyboard", "Global hold-to-talk hotkey")
-                featureRow("bolt.fill", "Optimized for low-latency dictation")
+                featureRow("chevron.left.forwardslash.chevron.right", "Free and open-source")
+                featureRow("lock.fill", "Audio and transcripts stay on-device")
+                featureRow("bolt.fill", "Fast Apple Silicon speech models")
             }
             .frame(maxWidth: 360, alignment: .leading)
 
@@ -432,7 +432,7 @@ struct OnboardingView: View {
             Text("Download Model")
                 .font(.title2.bold())
 
-            Text("Hold to Talk needs a speech recognition model.\nPick one to download — you can change this later in Settings.")
+            Text("Hold to Talk needs an on-device speech model.\nPick one to download — nothing starts until you approve it, and you can change this later in Settings.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

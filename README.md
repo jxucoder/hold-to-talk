@@ -4,11 +4,13 @@
 
 # Hold to Talk
 
-Free, open-source voice dictation for macOS. Hold a key, speak, release — your words appear wherever your cursor is. Nothing ever leaves your Mac.
+Free, open-source voice dictation for macOS. Hold a key, speak, release — your words appear wherever your cursor is. Your audio stays local and safe on your Mac.
 
-- **Fully private** — powered by [WhisperKit](https://github.com/argmaxinc/WhisperKit), transcription runs entirely on Apple Silicon via Core ML. No cloud, no accounts, no network calls.
+- **Free and open-source** — no subscription, no paywall, no black box. Inspect the code, build it yourself, or install a signed release.
+- **Local and safe** — powered by [WhisperKit](https://github.com/argmaxinc/WhisperKit), transcription runs entirely on Apple Silicon via Core ML. No cloud upload, no accounts, no tracking.
+- **Fast on-device AI** — optimized for low-latency dictation with high-performance on-device speech models, plus optional Apple Intelligence cleanup when available.
 - **Works everywhere** — dictate into any app: Slack, Notes, your IDE, email, browser — anywhere you can type.
-- **Apple Intelligence cleanup** (optional) — on-device grammar and filler-word removal. Customizable prompt. Requires macOS 26+.
+- **Apple Intelligence cleanup** (optional) — on-device grammar and filler-word removal with a customizable prompt. Requires macOS 26+.
 - **Auto-updates** — direct downloads update in-app via [Sparkle](https://sparkle-project.org); App Store installs update through the App Store.
 - **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
 
@@ -77,7 +79,7 @@ Open via menu bar → Settings:
 |---|---|---|
 | Launch at Login | off | Toggle on/off |
 | Transcription profile | `balanced` | `fast`, `balanced`, `best` |
-| Whisper model | device-recommended | `tiny.en`, `tiny`, `base.en`, `base`, `small.en`, `small`, `medium.en`, `medium`, `large-v3_turbo`, `large-v3-v20240930`, `large-v3-v20240930_turbo`, `large-v3` |
+| Whisper model | device-recommended | `tiny.en`, `tiny`, `base.en`, `base`, `small.en`, `small`, `medium.en`, `medium`, `distil-large-v3`, `distil-large-v3_turbo`, `large-v3_turbo`, `large-v3-v20240930`, `large-v3-v20240930_turbo`, `large-v3` |
 | Hotkey | Control | Control, Option, Shift, Right Option |
 | Cleanup | on | Toggle on/off — uses Apple Intelligence (macOS 26+) |
 | Cleanup prompt | (default) | Customizable instructions for how Apple Intelligence cleans up transcriptions |
@@ -98,7 +100,7 @@ OnboardingView         Guided setup flow for first launch
 SettingsView           SwiftUI settings form
 ```
 
-Dependencies: [WhisperKit](https://github.com/argmaxinc/WhisperKit) (transcription) and [Sparkle](https://sparkle-project.org) (auto-updates). No network calls for transcription — everything runs locally.
+Dependencies: [WhisperKit](https://github.com/argmaxinc/WhisperKit) (transcription) and [Sparkle](https://sparkle-project.org) (auto-updates). Transcription runs locally with on-device AI models, and Apple Intelligence cleanup is optional and on-device as well.
 
 ## Permissions
 

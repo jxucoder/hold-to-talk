@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hold to Talk — Voice Dictation for macOS</title>
-  <meta name="description" content="Free, open-source voice dictation for macOS. Hold a key, speak, release — your words appear wherever your cursor is. Nothing ever leaves your Mac.">
-  <meta property="og:title" content="Hold to Talk — Voice Dictation for macOS">
-  <meta property="og:description" content="Free, open-source voice dictation. Fully private, powered by WhisperKit on Apple Silicon.">
+  <title>Hold to Talk — Free Local Dictation for macOS</title>
+  <meta name="description" content="Free, open-source dictation for macOS. Your audio stays local and safe, the code is public, and transcription runs on fast on-device AI models.">
+  <meta property="og:title" content="Hold to Talk — Free Local Dictation for macOS">
+  <meta property="og:description" content="Free and open-source. Audio stays on your Mac. Fast on-device AI transcription with optional Apple Intelligence cleanup.">
   <meta property="og:image" content="screenshot.png">
   <link rel="icon" href="logo.png" type="image/png">
   <style>
@@ -119,6 +119,26 @@
       color: var(--text-secondary);
       max-width: 560px;
       margin: 0 auto 32px;
+    }
+
+    .hero .badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 0 auto 24px;
+      max-width: 720px;
+    }
+
+    .hero .badge {
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.01em;
     }
 
     .hero .cta {
@@ -340,8 +360,14 @@
 <section class="hero">
   <div class="container">
     <img src="logo.png" alt="Hold to Talk" class="app-icon">
-    <h1>Voice dictation for macOS</h1>
-    <p class="subtitle">Hold a key, speak, release — your words appear wherever your cursor is. Fully private. Nothing ever leaves your Mac.</p>
+    <h1>Free, private dictation for macOS</h1>
+    <p class="subtitle">Hold a key, speak, release. Hold to Talk is open-source voice dictation powered by fast on-device AI, so your audio stays local and safe on your Mac.</p>
+    <div class="badges">
+      <span class="badge">Free</span>
+      <span class="badge">Open source</span>
+      <span class="badge">Local and safe</span>
+      <span class="badge">Fast on-device AI</span>
+    </div>
     <a href="https://github.com/jxucoder/hold-to-talk/releases/latest" class="cta">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Download for Mac
@@ -351,7 +377,7 @@
       &nbsp;&middot;&nbsp;
       <span style="font-family: 'SF Mono', Menlo, monospace;">brew install jxucoder/tap/holdtotalk</span>
     </p>
-    <p class="requirement">Requires macOS 14+, Apple Silicon</p>
+    <p class="requirement">Requires macOS 15+, Apple Silicon</p>
   </div>
 </section>
 
@@ -366,34 +392,34 @@
     <h2>Why Hold to Talk</h2>
     <div class="features-grid">
       <div class="feature-card">
+        <div class="icon">&#x1f4b8;</div>
+        <h3>Free and open-source</h3>
+        <p>No subscription, no paywall, no black box. You can inspect the code, build it yourself, and ship it your way.</p>
+      </div>
+      <div class="feature-card">
         <div class="icon">&#x1f512;</div>
-        <h3>Fully private</h3>
-        <p>Powered by WhisperKit, transcription runs entirely on Apple Silicon via Core ML. No cloud, no accounts, no network calls.</p>
+        <h3>Local and safe</h3>
+        <p>Your speech stays on your Mac. Transcription runs locally on Apple Silicon via Core ML. No cloud upload, no account, no tracking.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">&#x26a1;</div>
+        <h3>Fast on-device AI</h3>
+        <p>Uses high-performance on-device speech models through WhisperKit, with optional Apple Intelligence cleanup when available.</p>
       </div>
       <div class="feature-card">
         <div class="icon">&#x1f310;</div>
         <h3>Works everywhere</h3>
-        <p>Dictate into any app — Slack, Notes, your IDE, email, browser. Anywhere you can type, Hold to Talk can paste.</p>
+        <p>Dictate into Slack, Notes, your IDE, email, browser, and most text fields. Anywhere you can type, Hold to Talk can paste.</p>
       </div>
       <div class="feature-card">
         <div class="icon">&#x2728;</div>
-        <h3>Apple Intelligence cleanup</h3>
-        <p>Optional on-device grammar and filler-word removal. Customizable prompt. Requires macOS 26+.</p>
-      </div>
-      <div class="feature-card">
-        <div class="icon">&#x1f4a8;</div>
-        <h3>Stays out of your way</h3>
-        <p>Lives in your menu bar. Hold a key to record, release to paste. No windows to manage, no workflow to learn.</p>
-      </div>
-      <div class="feature-card">
-        <div class="icon">&#x1f504;</div>
-        <h3>Auto-updates</h3>
-        <p>Built-in update checking via Sparkle. Get new features and fixes automatically, or check manually from Settings.</p>
+        <h3>Optional LLM cleanup</h3>
+        <p>When Apple Intelligence is available, Hold to Talk can clean up grammar and filler words entirely on-device with a customizable prompt.</p>
       </div>
       <div class="feature-card">
         <div class="icon">&#x1f4e6;</div>
         <h3>Install your way</h3>
-        <p>Download directly, install via Homebrew, or get it from the Mac App Store. Your choice.</p>
+        <p>Download directly, install via Homebrew, or get it from the Mac App Store. Your workflow, your choice.</p>
       </div>
     </div>
   </div>
@@ -425,7 +451,7 @@
 <section class="source">
   <div class="container">
     <h2>Open source</h2>
-    <p>Build from source in three commands.</p>
+    <p>Free software, Apache 2.0 licensed, and easy to inspect or build yourself.</p>
     <code>
       git clone https://github.com/jxucoder/hold-to-talk.git<br>
       cd hold-to-talk<br>
@@ -442,7 +468,7 @@
       <a href="https://github.com/jxucoder/hold-to-talk/blob/main/LICENSE">Apache 2.0</a>
       <a href="https://github.com/jxucoder/hold-to-talk/blob/main/PRIVACY.md">Privacy</a>
     </div>
-    <p>Hold to Talk is free and open-source software.</p>
+    <p>Hold to Talk is free, open-source, and local-first software for Mac.</p>
   </div>
 </footer>
 

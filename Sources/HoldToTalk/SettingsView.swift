@@ -45,12 +45,12 @@ struct SettingsView: View {
                     .frame(width: 64, height: 64)
                     Text("Hold to Talk")
                         .font(.title2.bold())
-                    Text("Free, open-source, and fully private — nothing leaves your Mac.")
+                    Text("Free and open-source. Audio stays on your Mac. Fast on-device speech models, with optional on-device Apple Intelligence cleanup.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     HStack(spacing: 12) {
-                        Link(destination: URL(string: "https://github.com/jxucoder/holdtotalk")!) {
+                        Link(destination: URL(string: "https://github.com/jxucoder/hold-to-talk")!) {
                             Image(systemName: "star")
                                 .font(.caption)
                         }
