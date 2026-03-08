@@ -112,7 +112,7 @@ jobs:
                 <pubDate>${PUBDATE}</pubDate>
                 <sparkle:version>${VERSION}</sparkle:version>
                 <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
-                <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+                <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
                 <enclosure url="${DOWNLOAD_URL}" length="${LENGTH}" type="application/octet-stream" ${SIG_ATTR} />
               </item>
             </channel>

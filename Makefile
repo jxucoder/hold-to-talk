@@ -35,7 +35,7 @@ build:
 		codesign -f -s - --entitlements Resources/HoldToTalk.dev.entitlements "$(APP_BUNDLE)"; \
 	else \
 		codesign -f --deep --options runtime --timestamp -s "$(SIGNING_IDENTITY)" "$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework"; \
-		codesign -f --options runtime --timestamp -s "$(SIGNING_IDENTITY)" --entitlements Resources/HoldToTalk.entitlements "$(APP_BUNDLE)"; \
+		codesign -f --options runtime --timestamp -s "$(SIGNING_IDENTITY)" --entitlements Resources/HoldToTalk.direct.entitlements "$(APP_BUNDLE)"; \
 	fi
 	@echo "Built $(APP_BUNDLE)"
 

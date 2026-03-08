@@ -2,12 +2,11 @@ import SwiftUI
 import ServiceManagement
 import AVFoundation
 import ApplicationServices
-import Sparkle
 
 struct SettingsView: View {
     @ObservedObject var engine: DictationEngine
     @ObservedObject var modelManager: ModelManager
-    var updater: SPUUpdater? = nil
+    var updater: (any AppUpdateDriver)? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var showManageModels = false
@@ -17,7 +16,7 @@ struct SettingsView: View {
     @State private var pendingFixInputMonitoring = false
     @State private var diagnosticsMessage: String?
 
-    private let hotkeys = HotkeyManager.Hotkey.allCases
+    private let hotkeys = HotkeyManager.Hotkey.selectableCases
     private var activeTranscriptionProfile: TranscriptionProfile {
         TranscriptionProfile(rawValue: engine.transcriptionProfile) ?? .balanced
     }
@@ -211,7 +210,7 @@ struct SettingsView: View {
             Section("Hotkey") {
                 Picker("Hold to record", selection: $engine.hotkeyChoice) {
                     ForEach(hotkeys, id: \.rawValue) { key in
-                        Text(key.rawValue).tag(key.rawValue)
+                        Text(key.displayName).tag(key.rawValue)
                     }
                 }
                 .onChange(of: engine.hotkeyChoice) {

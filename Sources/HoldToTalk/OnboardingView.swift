@@ -523,7 +523,7 @@ struct OnboardingView: View {
     // MARK: - Step 4: Ready
 
     private var resolvedHotkey: HotkeyManager.Hotkey {
-        HotkeyManager.Hotkey(rawValue: engine.hotkeyChoice) ?? .ctrl
+        HotkeyManager.Hotkey.preferredSelection(from: engine.hotkeyChoice)
     }
 
     private var readyStep: some View {
@@ -538,8 +538,8 @@ struct OnboardingView: View {
                         .font(.body)
 
                     Picker("Hotkey", selection: $engine.hotkeyChoice) {
-                        ForEach(HotkeyManager.Hotkey.allCases, id: \.rawValue) { key in
-                            Text(key.rawValue).tag(key.rawValue)
+                        ForEach(HotkeyManager.Hotkey.selectableCases, id: \.rawValue) { key in
+                            Text(key.displayName).tag(key.rawValue)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -558,7 +558,7 @@ struct OnboardingView: View {
                         Image(systemName: "keyboard")
                             .font(.system(size: 32))
                             .foregroundStyle(.secondary)
-                        Text("Press and hold [\(engine.hotkeyChoice)] to test")
+                        Text("Press and hold [\(resolvedHotkey.displayName)] to test")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     case .holding:
@@ -566,7 +566,7 @@ struct OnboardingView: View {
                             .font(.system(size: 32))
                             .foregroundStyle(.orange)
                             .symbolEffect(.pulse)
-                        Text("Holding [\(engine.hotkeyChoice)]… release to finish")
+                        Text("Holding [\(resolvedHotkey.displayName)]... release to finish")
                             .font(.callout)
                             .foregroundStyle(.orange)
                     case .success:

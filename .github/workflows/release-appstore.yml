@@ -26,6 +26,8 @@ jobs:
         run: |
           plutil -replace CFBundleVersion -string "${{ inputs.version }}" Resources/Info.plist
           plutil -replace CFBundleShortVersionString -string "${{ inputs.version }}" Resources/Info.plist
+          plutil -remove SUFeedURL Resources/Info.plist || true
+          plutil -remove SUPublicEDKey Resources/Info.plist || true
 
       - name: Install signing certificates
         env:
@@ -56,43 +58,20 @@ jobs:
 
       - name: Build
         run: |
-          swift build -c release
-
-          SPARKLE_FW="$(swift build -c release --show-bin-path)/Sparkle.framework"
+          APP_STORE=1 swift build -c release
 
           mkdir -p "$APP_BUNDLE/Contents/MacOS"
           mkdir -p "$APP_BUNDLE/Contents/Resources"
-          mkdir -p "$APP_BUNDLE/Contents/Frameworks"
           cp ".build/release/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
           cp Resources/Info.plist "$APP_BUNDLE/Contents/"
           cp Resources/HoldToTalk.icns "$APP_BUNDLE/Contents/Resources/"
           cp Resources/PrivacyInfo.xcprivacy "$APP_BUNDLE/Contents/Resources/"
-          rsync -a --delete "$SPARKLE_FW" "$APP_BUNDLE/Contents/Frameworks/"
-          install_name_tool -add_rpath @executable_path/../Frameworks "$APP_BUNDLE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
 
       - name: Sign for App Store
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           IDENTITY="Apple Distribution: Jiarui Xu ($APPLE_TEAM_ID)"
-          SPARKLE_DIR="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B"
-
-          for binary in \
-            "$SPARKLE_DIR/XPCServices/Downloader.xpc" \
-            "$SPARKLE_DIR/XPCServices/Installer.xpc" \
-            "$SPARKLE_DIR/Updater.app" \
-            "$SPARKLE_DIR/Autoupdate" \
-            "$SPARKLE_DIR/Sparkle"; do
-            codesign -f --options runtime --timestamp \
-              -s "$IDENTITY" \
-              --entitlements Resources/Sparkle.entitlements \
-              "$binary"
-          done
-
-          codesign -f --options runtime --timestamp \
-            -s "$IDENTITY" \
-            --entitlements Resources/Sparkle.entitlements \
-            "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 
           codesign -f --options runtime --timestamp \
             -s "$IDENTITY" \

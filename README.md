@@ -9,7 +9,7 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 - **Fully private** — powered by [WhisperKit](https://github.com/argmaxinc/WhisperKit), transcription runs entirely on Apple Silicon via Core ML. No cloud, no accounts, no network calls.
 - **Works everywhere** — dictate into any app: Slack, Notes, your IDE, email, browser — anywhere you can type.
 - **Apple Intelligence cleanup** (optional) — on-device grammar and filler-word removal. Customizable prompt. Requires macOS 26+.
-- **Auto-updates** — built-in update checking via [Sparkle](https://sparkle-project.org).
+- **Auto-updates** — direct downloads update in-app via [Sparkle](https://sparkle-project.org); App Store installs update through the App Store.
 - **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
 
 <p align="center">
@@ -78,7 +78,7 @@ Open via menu bar → Settings:
 | Launch at Login | off | Toggle on/off |
 | Transcription profile | `balanced` | `fast`, `balanced`, `best` |
 | Whisper model | device-recommended | `tiny.en`, `tiny`, `base.en`, `base`, `small.en`, `small`, `medium.en`, `medium`, `large-v3_turbo`, `large-v3-v20240930`, `large-v3-v20240930_turbo`, `large-v3` |
-| Hotkey | `ctrl` | `ctrl`, `option`, `shift`, `fn`, `right_option` |
+| Hotkey | Control | Control, Option, Shift, Right Option |
 | Cleanup | on | Toggle on/off — uses Apple Intelligence (macOS 26+) |
 | Cleanup prompt | (default) | Customizable instructions for how Apple Intelligence cleans up transcriptions |
 

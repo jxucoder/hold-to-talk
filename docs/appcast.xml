@@ -8,7 +8,7 @@
       <pubDate>Sun, 08 Mar 2026 01:10:55 +0000</pubDate>
       <sparkle:version>1.0.5</sparkle:version>
       <sparkle:shortVersionString>1.0.5</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
       <enclosure url="https://github.com/jxucoder/holdtotalk/releases/download/v1.0.5/HoldToTalk-v1.0.5.zip" length="3117273" type="application/octet-stream" sparkle:edSignature="thaboBMMZgqJNY/969KgIV0DmvL8Xa8+lGOa8XmAKzjcWswwTaq8XHYINf2CjKRxhaD0OI3Q5Do+VEATTfg6Dw==" />
     </item>
   </channel>

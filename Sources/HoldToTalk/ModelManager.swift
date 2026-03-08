@@ -175,7 +175,7 @@ final class ModelManager: ObservableObject {
                     }
                 }
                 if !Task.isCancelled {
-                    await MainActor.run { self.downloaded.insert(modelId) }
+                    await MainActor.run { _ = self.downloaded.insert(modelId) }
                 }
             } catch {
                 if !Task.isCancelled {

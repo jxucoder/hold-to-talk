@@ -6,6 +6,11 @@ enum AppInstallOutcome {
     case failure(message: String)
 }
 
+@MainActor
+private func terminateCurrentApp() {
+    NSApp.terminate(nil)
+}
+
 func isInstalledInApplicationsFolder(
     appURL: URL = Bundle.main.bundleURL,
     homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
@@ -21,13 +26,16 @@ func isInstalledInApplicationsFolder(
 @MainActor
 func installToApplicationsAndRelaunch(
     appURL: URL = Bundle.main.bundleURL,
-    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+    installDirectories: [URL]? = nil,
+    fileManager: FileManager = .default,
+    workspaceOpen: (URL) -> Bool = { NSWorkspace.shared.open($0) },
+    terminate: @MainActor () -> Void = terminateCurrentApp
 ) -> AppInstallOutcome {
-    let fileManager = FileManager.default
     let sourceURL = canonicalURL(appURL)
     let appName = sourceURL.lastPathComponent
 
-    let destinations = installBaseDirectories(homeDirectory: homeDirectory)
+    let destinations = installDirectories ?? installBaseDirectories(homeDirectory: homeDirectory)
 
     // Already installed in one of the supported Application folders.
     for base in destinations {
@@ -40,29 +48,44 @@ func installToApplicationsAndRelaunch(
     var lastError: Error?
     for base in destinations {
         let destination = canonicalURL(base.appendingPathComponent(appName, isDirectory: true))
+        let stagingURL = base.appendingPathComponent(".\(appName).\(UUID().uuidString).tmp", isDirectory: true)
         do {
             try fileManager.createDirectory(at: base, withIntermediateDirectories: true)
+            try fileManager.copyItem(at: sourceURL, to: stagingURL)
+
+            let installedURL: URL
             if fileManager.fileExists(atPath: destination.path) {
-                try fileManager.removeItem(at: destination)
+                let replacedURL = try fileManager.replaceItemAt(
+                    destination,
+                    withItemAt: stagingURL,
+                    backupItemName: nil,
+                    options: []
+                )
+                installedURL = canonicalURL(replacedURL ?? destination)
+            } else {
+                try fileManager.moveItem(at: stagingURL, to: destination)
+                installedURL = destination
             }
-            try fileManager.copyItem(at: sourceURL, to: destination)
 
             // Only terminate if the new instance actually launches.
             // If open() fails (e.g. Gatekeeper quarantine), stay alive so the user sees an error
             // rather than the app silently disappearing.
-            guard NSWorkspace.shared.open(destination) else {
+            guard workspaceOpen(installedURL) else {
                 lastError = NSError(
                     domain: NSCocoaErrorDomain,
                     code: NSFileWriteNoPermissionError,
                     userInfo: [NSLocalizedDescriptionKey:
-                        "Copied to \(destination.path) but could not launch — check Gatekeeper settings."]
+                        "Copied to \(installedURL.path) but could not launch — check Gatekeeper settings."]
                 )
                 continue
             }
-            NSApp.terminate(nil)
-            return .success(destination: destination)
+            terminate()
+            return .success(destination: installedURL)
         } catch {
             lastError = error
+            if fileManager.fileExists(atPath: stagingURL.path) {
+                try? fileManager.removeItem(at: stagingURL)
+            }
         }
     }
 

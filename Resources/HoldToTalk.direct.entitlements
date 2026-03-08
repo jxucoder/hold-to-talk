@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Direct distribution: no sandbox so self-install and Sparkle can work normally. -->
+
+    <!-- Microphone — user grants via System Settings > Privacy > Microphone -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+
+    <!-- Network access — required for WhisperKit model downloads and Sparkle appcasts -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>

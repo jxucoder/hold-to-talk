@@ -107,6 +107,10 @@ final class DictationEngine: ObservableObject {
         if TranscriptionProfile(rawValue: transcriptionProfile) == nil {
             transcriptionProfile = TranscriptionProfile.balanced.rawValue
         }
+        let preferredHotkey = HotkeyManager.Hotkey.preferredSelection(from: hotkeyChoice)
+        if preferredHotkey.rawValue != hotkeyChoice {
+            hotkeyChoice = preferredHotkey.rawValue
+        }
 
         Task { @MainActor [weak self] in
             guard let self, self.onboardingComplete else { return }
@@ -338,7 +342,7 @@ final class DictationEngine: ObservableObject {
     }
 
     private var resolvedHotkey: HotkeyManager.Hotkey {
-        HotkeyManager.Hotkey(rawValue: hotkeyChoice) ?? .ctrl
+        HotkeyManager.Hotkey.preferredSelection(from: hotkeyChoice)
     }
 
     private func ensureActiveTranscriber() -> Transcriber {

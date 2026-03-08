@@ -1,7 +1,9 @@
 import SwiftUI
 import ApplicationServices
 import AVFoundation
+#if canImport(Sparkle)
 import Sparkle
+#endif
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var openOnboardingHandler: (() -> Void)?
@@ -98,13 +100,27 @@ struct HoldToTalkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var engine = DictationEngine()
     @Environment(\.openWindow) private var openWindow
+    #if canImport(Sparkle)
     private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    #endif
 
     private var shouldShowOnboarding: Bool {
         #if DEBUG
         if DebugFlags.forceOnboarding { return true }
         #endif
         return !engine.onboardingComplete
+    }
+
+    private var hotkeyDisplayName: String {
+        HotkeyManager.Hotkey.preferredSelection(from: engine.hotkeyChoice).displayName
+    }
+
+    private var appUpdater: (any AppUpdateDriver)? {
+        #if canImport(Sparkle)
+        return SparkleUpdateDriver(updater: updaterController.updater)
+        #else
+        return nil
+        #endif
     }
 
     var body: some Scene {
@@ -129,7 +145,7 @@ struct HoldToTalkApp: App {
         .defaultLaunchBehavior(.suppressed)
 
         Window("Hold to Talk Settings", id: "settings") {
-            SettingsView(engine: engine, modelManager: engine.modelManager, updater: updaterController.updater)
+            SettingsView(engine: engine, modelManager: engine.modelManager, updater: appUpdater)
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)
@@ -138,7 +154,7 @@ struct HoldToTalkApp: App {
     private var label: some View {
         Label(
             engine.state == .idle
-                ? "Ready — hold [\(engine.hotkeyChoice)]"
+                ? "Ready - hold [\(hotkeyDisplayName)]"
                 : engine.state.label,
             systemImage: engine.state.icon
         )

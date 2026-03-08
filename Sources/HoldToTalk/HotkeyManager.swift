@@ -5,6 +5,27 @@ final class HotkeyManager {
     enum Hotkey: String, CaseIterable {
         case ctrl, option, shift, fn, rightOption = "right_option"
 
+        var displayName: String {
+            switch self {
+            case .ctrl: return "Control"
+            case .option: return "Option"
+            case .shift: return "Shift"
+            case .fn: return "Fn"
+            case .rightOption: return "Right Option"
+            }
+        }
+
+        static var selectableCases: [Hotkey] {
+            [.ctrl, .option, .shift, .rightOption]
+        }
+
+        static func preferredSelection(from rawValue: String) -> Hotkey {
+            guard let hotkey = Hotkey(rawValue: rawValue), hotkey != .fn else {
+                return .ctrl
+            }
+            return hotkey
+        }
+
         var flag: NSEvent.ModifierFlags {
             switch self {
             case .ctrl:        return .control
