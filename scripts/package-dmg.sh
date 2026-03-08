@@ -91,11 +91,7 @@ swift "${SCRIPT_DIR}/render-dmg-background.swift" \
   "${BACKGROUND_TEXTURE}" \
   "${MINIMUM_SYSTEM_VERSION}"
 
-CLANG_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-clang-cache" \
-SWIFT_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/holdtotalk-swift-cache" \
-swift "${SCRIPT_DIR}/create-finder-alias.swift" \
-  "/Applications" \
-  "${STAGING_DIR}/Applications"
+ln -s /Applications "${STAGING_DIR}/Applications"
 
 STAGING_MB="$(du -sm "${STAGING_DIR}" | awk '{print $1}')"
 DMG_SIZE_MB=$((STAGING_MB + 32))
@@ -215,6 +211,7 @@ if [[ ! -f "${MOUNT_DIR}/.DS_Store" ]]; then
 fi
 
 chmod -Rf go-w "${MOUNT_DIR}" >/dev/null 2>&1 || true
+bless --folder "${MOUNT_DIR}" --openfolder "${MOUNT_DIR}" >/dev/null 2>&1 || true
 sync
 
 hdiutil detach "${DMG_DEVICE}" -quiet >/dev/null
