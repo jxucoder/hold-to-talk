@@ -7,11 +7,11 @@
 Free, open-source voice dictation for macOS. Hold a key, speak, release — your words appear wherever your cursor is. Your audio stays local and safe on your Mac.
 
 - **Free and open-source** — no subscription, no paywall, no black box. Inspect the code, build it yourself, or install a signed release.
-- **Local and safe** — powered by [WhisperKit](https://github.com/argmaxinc/WhisperKit), transcription runs entirely on Apple Silicon via Core ML. No cloud upload, no accounts, no tracking.
+- **Local and safe** — powered by [WhisperKit](https://github.com/argmaxinc/WhisperKit), transcription runs entirely on Apple Silicon via Core ML. No cloud upload, no accounts, no in-app tracking.
 - **Fast on-device AI** — optimized for low-latency dictation with high-performance on-device speech models, plus optional Apple Intelligence cleanup when available.
 - **Works everywhere** — dictate into any app: Slack, Notes, your IDE, email, browser — anywhere you can type.
 - **Apple Intelligence cleanup** (optional) — on-device grammar and filler-word removal with a customizable prompt. Requires macOS 26+.
-- **Auto-updates** — direct downloads update in-app via [Sparkle](https://sparkle-project.org); App Store installs update through the App Store.
+- **Auto-updates** — direct downloads update in-app via [Sparkle](https://sparkle-project.org).
 - **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
 
 <p align="center">
@@ -21,10 +21,6 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 ## Install
 
 **Requirements:** macOS 15+, Apple Silicon.
-
-### Mac App Store
-
-[![Download on the Mac App Store](https://developer.apple.com/assets/elements/badges/download-on-the-mac-app-store.svg)](https://apps.apple.com/app/hold-to-talk/id6744136857)
 
 ### Download pre-built binary
 
@@ -122,7 +118,7 @@ Contributions are welcome! Please open an issue to discuss larger changes before
 
 ## Privacy
 
-Hold to Talk runs entirely on your Mac — no cloud, no accounts, no tracking. See the full [Privacy Policy](PRIVACY.md).
+Hold to Talk runs entirely on your Mac — no cloud transcription service, no accounts, and no in-app tracking. See the full [Privacy Policy](PRIVACY.md).
 
 ## License
 

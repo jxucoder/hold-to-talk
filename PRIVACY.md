@@ -1,65 +1,106 @@
 # Privacy Policy
 
-**Effective date:** February 21, 2026
+**Effective date:** March 8, 2026
 
-Hold to Talk is a free, open-source voice dictation app for macOS. It is designed from the ground up to keep your data private. This policy explains what the app does — and does not do — with your information.
+This privacy policy covers the Hold to Talk macOS app and the Hold to Talk website at `holdtotalk.ai`.
 
-## Core principle
+## Summary
 
-**Nothing ever leaves your Mac.** All speech recognition and text processing happen entirely on your device using Apple Silicon hardware acceleration. There are no cloud services, user accounts, analytics, or telemetry of any kind.
+- The **app** is designed to keep dictation data on your Mac.
+- The **website** uses Google Analytics to understand traffic and page usage.
+- Hold to Talk does **not** sell personal data or use advertising trackers inside the app.
 
-## Data we collect
+## Hold to Talk app
 
-None. Hold to Talk does not collect, store, transmit, or share any personal data.
+### What the app does with your data
 
-## Audio
+Hold to Talk records microphone audio only while you hold the dictation hotkey. Speech recognition runs locally on your Mac using on-device models. Audio and transcribed text are not sent to Hold to Talk servers.
 
-- Your microphone audio is captured only while you hold the dictation hotkey.
-- Audio is processed in memory by [WhisperKit](https://github.com/argmaxinc/WhisperKit) (Core ML) to produce a text transcription.
-- Audio is never saved to disk and is discarded immediately after transcription.
-- Audio is never sent over the network.
+### Audio
 
-## Transcriptions
+- Microphone audio is captured only during an active dictation session.
+- Audio is processed locally in memory for transcription.
+- Audio is not uploaded to Hold to Talk.
+- Audio is not stored as recordings by Hold to Talk.
 
-- Transcribed text is inserted into the active application and is not retained by Hold to Talk.
-- If Apple Intelligence cleanup is enabled (macOS 26+), the transcription is processed on-device by the system's built-in language model before insertion. This processing is handled entirely by macOS and does not involve any network requests.
+### Transcriptions
 
-## Network access
+- Transcribed text is inserted into the app you are using.
+- Hold to Talk does not keep a cloud transcription history.
+- If optional Apple Intelligence cleanup is enabled, cleanup is performed by on-device system features provided by macOS.
 
-Hold to Talk makes **no network calls** during normal operation. The only network activity occurs when you download a Whisper speech recognition model for the first time (or switch models). Models are fetched from [Hugging Face](https://huggingface.co/argmaxinc) and stored locally on your Mac. No personal data is transmitted during this download.
+### Local storage
 
-## Local storage
+Hold to Talk stores app data on your Mac, including:
 
-Hold to Talk stores the following on your Mac:
+- preferences such as hotkey choice, selected model, and cleanup settings
+- downloaded speech models required for on-device transcription
+- temporary app state needed for onboarding and operation
 
-| Data | Location | Purpose |
-|---|---|---|
-| User preferences | `UserDefaults` | Hotkey, selected model, cleanup toggle, cleanup prompt |
-| Whisper models | App container | On-device speech recognition |
+Hold to Talk does not intentionally store audio recordings or a server-side transcript history.
 
-No logs, recordings, transcription history, or usage data are stored.
+### Network activity from the app
 
-## macOS permissions
+The app may make limited network requests for product delivery features:
 
-Hold to Talk requests two system permissions:
+- downloading speech models from supported model hosts such as Hugging Face
+- checking for direct-release app updates through Sparkle when using the non-App-Store version
 
-- **Microphone** — to capture audio for voice dictation.
-- **Accessibility** — to listen for the global hotkey and simulate keyboard input to paste transcriptions.
+These requests are used to download app or model files. Hold to Talk does not send your microphone audio or transcription text as part of those requests.
 
-These permissions are managed by macOS and can be revoked at any time in System Settings → Privacy & Security.
+### App analytics and tracking
 
-## Third-party services
+Hold to Talk does not include in-app advertising, third-party analytics SDKs, or app telemetry that tracks what you dictate.
 
-Hold to Talk has no third-party analytics, crash reporting, advertising, or tracking SDKs. The sole external dependency is [WhisperKit](https://github.com/argmaxinc/WhisperKit), an open-source speech recognition library that runs entirely on-device.
+## Website
 
-## Children's privacy
+### Website analytics
 
-Hold to Talk does not collect any data from anyone, including children.
+The Hold to Talk website uses **Google Analytics** to measure site traffic and usage. When you visit the website, Google Analytics may collect information such as:
+
+- pages viewed
+- approximate geographic region
+- browser and device information
+- referral source
+- basic interaction and session data
+
+This information helps understand website usage and improve the site. Website analytics do not include your dictation audio or transcription text from the app.
+
+### Website hosting and downloads
+
+The website and release assets may be served through third-party infrastructure such as GitHub Pages, GitHub Releases, and other download providers. Those services may receive technical information such as your IP address, user agent, and request logs as part of normal web delivery.
+
+## Permissions
+
+The app may request these macOS permissions:
+
+- **Microphone** for voice input
+- **Accessibility** for text insertion and interaction support
+- **Input Monitoring** for reliable global hotkey detection
+
+These permissions are managed by macOS and can be revoked at any time in System Settings.
+
+## Third parties
+
+Depending on how you use Hold to Talk, third-party services may be involved:
+
+- **Google Analytics** for website traffic analytics
+- **GitHub** for website hosting, source code, and release downloads
+- **Hugging Face** for speech model downloads
+- **Sparkle** for direct-release update delivery
+
+Their handling of technical request data is governed by their own policies.
+
+## Children
+
+Hold to Talk is not directed to children, and Hold to Talk does not knowingly collect personal information from children through the app.
 
 ## Changes to this policy
 
-If this policy changes, the update will be posted in this repository with a revised effective date.
+If this policy changes, the updated version will be posted on the website and in this repository with a new effective date.
 
 ## Contact
 
-If you have questions about this privacy policy, please [open an issue](https://github.com/jxucoder/holdtotalk/issues) on GitHub.
+If you have privacy questions, open an issue at:
+
+`https://github.com/jxucoder/hold-to-talk/issues`
