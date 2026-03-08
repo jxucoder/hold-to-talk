@@ -584,7 +584,6 @@ struct OnboardingView: View {
             }
 
             Button("Start Using Hold to Talk") {
-                step = 0
                 engine.completeOnboarding()
                 dismiss()
             }
@@ -599,6 +598,9 @@ struct OnboardingView: View {
         }
         .onDisappear {
             hotkeyTester.remove()
+            if engine.onboardingComplete {
+                step = 0
+            }
         }
     }
 
