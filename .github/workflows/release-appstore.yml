@@ -6,6 +6,9 @@ on:
       version:
         description: "Version to submit (e.g. 1.0.0). Must match CFBundleShortVersionString."
         required: true
+      build_number:
+        description: "Optional CFBundleVersion override for corrected re-uploads (e.g. 1.0.1). Defaults to version."
+        required: false
 
 env:
   APP_NAME: HoldToTalk
@@ -27,7 +30,11 @@ jobs:
 
       - name: Stamp version
         run: |
-          plutil -replace CFBundleVersion -string "${{ inputs.version }}" Resources/Info.plist
+          BUILD_NUMBER="${{ inputs.build_number }}"
+          if [ -z "$BUILD_NUMBER" ]; then
+            BUILD_NUMBER="${{ inputs.version }}"
+          fi
+          plutil -replace CFBundleVersion -string "$BUILD_NUMBER" Resources/Info.plist
           plutil -replace CFBundleShortVersionString -string "${{ inputs.version }}" Resources/Info.plist
           plutil -remove SUFeedURL Resources/Info.plist || true
           plutil -remove SUPublicEDKey Resources/Info.plist || true
