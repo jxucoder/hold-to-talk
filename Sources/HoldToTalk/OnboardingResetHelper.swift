@@ -8,6 +8,7 @@ let transcriptionProfileDefaultsKey = "transcriptionProfile"
 let cleanupEnabledDefaultsKey = "cleanupEnabled"
 let cleanupPromptDefaultsKey = "cleanupPrompt"
 let hotkeyChoiceDefaultsKey = "hotkeyChoice"
+let diagnosticLoggingEnabledDefaultsKey = "diagnosticLoggingEnabled"
 
 func shouldResetAppStateForFreshOnboarding(defaults: UserDefaults = .standard) -> Bool {
     #if DEBUG

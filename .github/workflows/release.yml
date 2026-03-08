@@ -12,6 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test
+        run: swift test
+
       - name: Stamp version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"

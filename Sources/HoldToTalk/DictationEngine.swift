@@ -90,6 +90,8 @@ final class DictationEngine: ObservableObject {
     private var axPollTask: Task<Void, Never>?
     private var activationObserver: NSObjectProtocol?
     private var transcriberWarmupTask: Task<Void, Never>?
+    private var activeWarmupKey: String?
+    private var completedWarmupKey: String?
 
     init() {
         let profile = WhisperModelInfo.deviceModelProfile()
@@ -132,24 +134,38 @@ final class DictationEngine: ObservableObject {
 
     func prewarmTranscriber() {
         let activeTranscriber = ensureActiveTranscriber()
-        let modelSize = activeTranscriber.modelSize
         let profile = resolvedTranscriptionProfile
+        let warmupKey = makeWarmupKey(modelSize: activeTranscriber.modelSize, profile: profile)
+
+        if completedWarmupKey == warmupKey {
+            return
+        }
+
+        if activeWarmupKey == warmupKey, transcriberWarmupTask != nil {
+            return
+        }
+
         transcriberWarmupTask?.cancel()
+        activeWarmupKey = warmupKey
         transcriberWarmupTask = Task { [weak self] in
             do {
                 try await activeTranscriber.prepareForFirstTranscription(profile: profile)
             } catch {
-                print("[holdtotalk] Model pre-warm failed: \(error)")
+                debugLog("[holdtotalk] Model pre-warm failed: \(error)")
                 guard let self else { return }
-                if self.transcriber?.modelSize == modelSize {
+                if self.activeWarmupKey == warmupKey {
+                    self.activeWarmupKey = nil
                     self.transcriberWarmupTask = nil
                 }
                 return
             }
 
             guard let self else { return }
-            if self.transcriber?.modelSize == modelSize {
+            if self.activeWarmupKey == warmupKey {
+                self.completedWarmupKey = warmupKey
+                self.activeWarmupKey = nil
                 self.transcriberWarmupTask = nil
+                debugLog("[holdtotalk] Model pre-warm complete [\(warmupKey)]")
             }
         }
     }
@@ -220,6 +236,7 @@ final class DictationEngine: ObservableObject {
         axPollTask = nil
         transcriberWarmupTask?.cancel()
         transcriberWarmupTask = nil
+        activeWarmupKey = nil
         if let activationObserver {
             NotificationCenter.default.removeObserver(activationObserver)
         }
@@ -242,6 +259,8 @@ final class DictationEngine: ObservableObject {
         recordingTargetAppPID = nil
         recordingTargetBundleID = nil
         transcriber = nil
+        activeWarmupKey = nil
+        completedWarmupKey = nil
 
         onboardingComplete = false
         UserDefaults.standard.set(0, forKey: onboardingStepDefaultsKey)
@@ -279,6 +298,8 @@ final class DictationEngine: ObservableObject {
         debugLog("[holdtotalk] Recording target: \(recordingTargetBundleID ?? "nil")")
         state = .recording
         recordingLevel = 0
+        // Kick warm-up again on press so model load/decode can overlap with the user's hold time.
+        prewarmTranscriber()
 
         // Fix #9: report microphone errors to the user instead of swallowing them
         do {
@@ -331,7 +352,7 @@ final class DictationEngine: ObservableObject {
             }
             lastError = nil  // clear any previous error on success
             lastRawText = raw
-            debugLog("[holdtotalk] Raw: \(raw)")
+            debugLogSensitive("[holdtotalk] Raw", text: raw)
 
             var finalText = raw
             // Only enter .cleaning state when Apple Intelligence is actually available;
@@ -340,7 +361,7 @@ final class DictationEngine: ObservableObject {
                 state = .cleaning
                 let cleaned = try await TextProcessor(prompt: cleanupPrompt).cleanup(raw)
                 if cleaned != raw {
-                    debugLog("[holdtotalk] Cleaned: \(cleaned)")
+                    debugLogSensitive("[holdtotalk] Cleaned", text: cleaned)
                     finalText = cleaned
                 }
             }
@@ -370,6 +391,9 @@ final class DictationEngine: ObservableObject {
                 debugLog("[holdtotalk] Inserted via \(report.method ?? "unknown").")
             } else {
                 lastInsertDebug = report.summary
+                if let userFacingError = report.userFacingError {
+                    lastError = userFacingError
+                }
                 debugLog("[holdtotalk] Insert unconfirmed. \(report.attempts.joined(separator: " | "))")
             }
         } catch {
@@ -389,6 +413,10 @@ final class DictationEngine: ObservableObject {
 
     private func ensureActiveTranscriber() -> Transcriber {
         if transcriber?.modelSize != whisperModel {
+            transcriberWarmupTask?.cancel()
+            transcriberWarmupTask = nil
+            activeWarmupKey = nil
+            completedWarmupKey = nil
             transcriber = Transcriber(modelSize: whisperModel)
         }
         return transcriber!
@@ -396,6 +424,10 @@ final class DictationEngine: ObservableObject {
 
     private var resolvedTranscriptionProfile: TranscriptionProfile {
         TranscriptionProfile(rawValue: transcriptionProfile) ?? .balanced
+    }
+
+    private func makeWarmupKey(modelSize: String, profile: TranscriptionProfile) -> String {
+        "\(modelSize)|\(profile.rawValue)"
     }
 
     /// Polls until Accessibility is granted so the UI updates live.

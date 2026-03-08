@@ -25,6 +25,17 @@ private let logQueue = DispatchQueue(label: "com.holdtotalk.debuglog", qos: .uti
 /// Accessed only from `logQueue`.
 private var _logHandle: FileHandle?
 
+func isDiagnosticLoggingEnabled(defaults: UserDefaults = .standard) -> Bool {
+    defaults.bool(forKey: diagnosticLoggingEnabledDefaultsKey)
+}
+
+func diagnosticLogRedactionSummary(for text: String) -> String {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "<redacted empty>" }
+    let wordCount = trimmed.split(whereSeparator: \.isWhitespace).count
+    return "<redacted \(trimmed.count) chars, \(wordCount) words>"
+}
+
 private func ensureLogHandle() -> FileHandle? {
     if let handle = _logHandle { return handle }
     if !FileManager.default.fileExists(atPath: debugLogPath) {
@@ -61,9 +72,25 @@ func truncateDebugLogIfNeeded() {
     }
 }
 
+func clearDebugLog(fileManager: FileManager = .default) {
+    logQueue.sync {
+        _logHandle?.closeFile()
+        _logHandle = nil
+        guard fileManager.fileExists(atPath: debugLogPath) else { return }
+        try? fileManager.removeItem(atPath: debugLogPath)
+    }
+}
+
+func debugLogSensitive(_ label: String, text: String) {
+    debugLog("\(label): \(diagnosticLogRedactionSummary(for: text))")
+}
+
 func debugLog(_ message: String) {
-    let line = "[\(debugLogFormatter.string(from: Date()))] \(message)\n"
+    #if DEBUG
     print(message)
+    #endif
+    guard isDiagnosticLoggingEnabled() else { return }
+    let line = "[\(debugLogFormatter.string(from: Date()))] \(message)\n"
     guard let data = line.data(using: .utf8) else { return }
     // Async dispatch — callers are never blocked waiting for disk I/O.
     logQueue.async {

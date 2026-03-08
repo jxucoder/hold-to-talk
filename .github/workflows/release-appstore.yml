@@ -22,6 +22,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Test
+        run: swift test
+
       - name: Stamp version
         run: |
           plutil -replace CFBundleVersion -string "${{ inputs.version }}" Resources/Info.plist
@@ -60,12 +63,26 @@ jobs:
         run: |
           APP_STORE=1 swift build -c release
 
+          rm -rf "$APP_BUNDLE"
           mkdir -p "$APP_BUNDLE/Contents/MacOS"
           mkdir -p "$APP_BUNDLE/Contents/Resources"
           cp ".build/release/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
           cp Resources/Info.plist "$APP_BUNDLE/Contents/"
           cp Resources/HoldToTalk.icns "$APP_BUNDLE/Contents/Resources/"
           cp Resources/PrivacyInfo.xcprivacy "$APP_BUNDLE/Contents/Resources/"
+
+          if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework" ]; then
+            echo "Unexpected Sparkle.framework in App Store bundle" >&2
+            exit 1
+          fi
+          if /usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$APP_BUNDLE/Contents/Info.plist" >/dev/null 2>&1; then
+            echo "Unexpected SUFeedURL in App Store bundle" >&2
+            exit 1
+          fi
+          if /usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$APP_BUNDLE/Contents/Info.plist" >/dev/null 2>&1; then
+            echo "Unexpected SUPublicEDKey in App Store bundle" >&2
+            exit 1
+          fi
 
       - name: Sign for App Store
         env:

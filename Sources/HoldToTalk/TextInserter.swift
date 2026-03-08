@@ -2,12 +2,27 @@ import AppKit
 
 /// Inserts text at the focused caret.
 enum TextInserter {
+    enum FailureReason {
+        case secureInput
+
+        var userFacingError: String {
+            switch self {
+            case .secureInput:
+                return "Secure text input is active. Dictation is unavailable in password and other protected fields."
+            }
+        }
+    }
+
     struct InsertReport {
         let success: Bool
         let method: String?
         let attempts: [String]
+        let failureReason: FailureReason?
 
         var summary: String {
+            if let failureReason {
+                return "Insert blocked. \(failureReason.userFacingError) " + attempts.joined(separator: " | ")
+            }
             if success, let method {
                 return "Inserted via \(method)."
             }
@@ -15,6 +30,10 @@ enum TextInserter {
                 return "Insertion unconfirmed via \(method). " + attempts.joined(separator: " | ")
             }
             return "Insert failed. " + attempts.joined(separator: " | ")
+        }
+
+        var userFacingError: String? {
+            failureReason?.userFacingError
         }
     }
 
@@ -43,7 +62,7 @@ enum TextInserter {
 
     static func insert(_ text: String, targetBundleID: String? = nil, targetPID: pid_t? = nil) -> InsertReport {
         guard !text.isEmpty else {
-            return InsertReport(success: false, method: nil, attempts: ["empty text"])
+            return InsertReport(success: false, method: nil, attempts: ["empty text"], failureReason: nil)
         }
 
         var attempts: [String] = []
@@ -52,7 +71,17 @@ enum TextInserter {
         attempts.append("app=\(bundleID)")
         attempts.append("profile=\(profile.name)")
         attempts.append("AX trusted: \(AXIsProcessTrusted() ? "yes" : "no")")
-        attempts.append("secureInput=\(isSecureInputActive() ? "on" : "off")")
+        let secureInputActive = isSecureInputActive()
+        attempts.append("secureInput=\(secureInputActive ? "on" : "off")")
+        if secureInputActive {
+            attempts.append("blocked=secureInput")
+            return InsertReport(
+                success: false,
+                method: nil,
+                attempts: attempts,
+                failureReason: .secureInput
+            )
+        }
 
         for pass in 0..<max(1, profile.passes) {
             for strategy in profile.order {
@@ -64,10 +93,10 @@ enum TextInserter {
                 ) {
                 case .success:
                     attempts.append("pass\(pass + 1):\(strategy.rawValue)=ok")
-                    return InsertReport(success: true, method: strategy.rawValue, attempts: attempts)
+                    return InsertReport(success: true, method: strategy.rawValue, attempts: attempts, failureReason: nil)
                 case .tentative:
                     attempts.append("pass\(pass + 1):\(strategy.rawValue)=tentative")
-                    return InsertReport(success: true, method: strategy.rawValue, attempts: attempts)
+                    return InsertReport(success: true, method: strategy.rawValue, attempts: attempts, failureReason: nil)
                 case .fail:
                     attempts.append("pass\(pass + 1):\(strategy.rawValue)=fail")
                 }
@@ -75,7 +104,7 @@ enum TextInserter {
             usleep(35_000)
         }
 
-        return InsertReport(success: false, method: nil, attempts: attempts)
+        return InsertReport(success: false, method: nil, attempts: attempts, failureReason: nil)
     }
 
     private static func run(

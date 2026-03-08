@@ -28,6 +28,7 @@ Hold to Talk records microphone audio only while you hold the dictation hotkey. 
 - Transcribed text is inserted into the app you are using.
 - Hold to Talk does not keep a cloud transcription history.
 - If optional Apple Intelligence cleanup is enabled, cleanup is performed by on-device system features provided by macOS.
+- If you explicitly enable local diagnostic logging for troubleshooting, transcript text is redacted in those logs by default.
 
 ### Local storage
 
@@ -36,6 +37,7 @@ Hold to Talk stores app data on your Mac, including:
 - preferences such as hotkey choice, selected model, and cleanup settings
 - downloaded speech models required for on-device transcription
 - temporary app state needed for onboarding and operation
+- optional local diagnostic logs, only if you enable them for troubleshooting
 
 Hold to Talk does not intentionally store audio recordings or a server-side transcript history.
 

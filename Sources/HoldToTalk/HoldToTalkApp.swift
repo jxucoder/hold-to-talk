@@ -11,7 +11,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hasOpenedInitialOnboarding = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        truncateDebugLogIfNeeded()
+        if isDiagnosticLoggingEnabled() {
+            truncateDebugLogIfNeeded()
+        } else {
+            clearDebugLog()
+        }
 
         if shouldOpenInitialOnboarding {
             pendingInitialOnboardingOpen = true

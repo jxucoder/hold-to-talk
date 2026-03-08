@@ -102,8 +102,8 @@ Dependencies: [WhisperKit](https://github.com/argmaxinc/WhisperKit) (transcripti
 
 macOS will prompt for:
 - **Microphone** — required for recording
-- **Accessibility** — required for global hotkey and paste simulation
-- **Input Monitoring** — required for reliable global key listening
+- **Accessibility** — required for text insertion and focused-app interaction
+- **Input Monitoring** — required for reliable global hotkey detection
 
 Detailed guide: [Permission System Notes](docs/permissions.md)
 

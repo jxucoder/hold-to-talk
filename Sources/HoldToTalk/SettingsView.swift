@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var isRunningEnvironmentFix = false
     @State private var pendingFixInputMonitoring = false
     @State private var diagnosticsMessage: String?
+    @AppStorage(diagnosticLoggingEnabledDefaultsKey) private var diagnosticLoggingEnabled = false
 
     private let hotkeys = HotkeyManager.Hotkey.selectableCases
     private var activeTranscriptionProfile: TranscriptionProfile {
@@ -112,6 +113,21 @@ struct SettingsView: View {
                             ? "Downloading \(modelDisplayName(activeModelID))..."
                             : "\(modelDisplayName(activeModelID)) not downloaded")
                 )
+
+                Toggle("Store diagnostic logs", isOn: $diagnosticLoggingEnabled)
+                    .onChange(of: diagnosticLoggingEnabled) { _, enabled in
+                        if enabled {
+                            debugLog("[holdtotalk] Diagnostic logging enabled.")
+                        } else {
+                            clearDebugLog()
+                        }
+                    }
+
+                Text(diagnosticLoggingEnabled
+                     ? "Local diagnostic logging is enabled. Logs stay on your Mac and transcript text is redacted."
+                     : "Diagnostic logging is off by default. Turn it on only when troubleshooting; transcript text stays redacted.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 if let diagnosticsMessage {
                     Text(diagnosticsMessage)

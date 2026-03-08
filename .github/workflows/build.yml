@@ -12,7 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build
+      - name: Test
+        run: swift test
+
+      - name: Build (App Store)
+        run: APP_STORE=1 make build
+
+      - name: Build (Direct)
         run: make build
 
       - name: Upload artifact
