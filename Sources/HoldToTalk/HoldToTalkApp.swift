@@ -12,22 +12,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         truncateDebugLogIfNeeded()
-        #if DEBUG
-        if DebugFlags.resetOnboarding {
-            UserDefaults.standard.set(false, forKey: "onboardingComplete")
-            UserDefaults.standard.removeObject(forKey: "onboardingStep")
-            UserDefaults.standard.removeObject(forKey: accessibilityPromptedDefaultsKey)
-            UserDefaults.standard.removeObject(forKey: inputMonitoringPromptedDefaultsKey)
-            print("[debug] Onboarding state reset.")
-        }
-        #endif
 
         if shouldOpenInitialOnboarding {
             pendingInitialOnboardingOpen = true
             flushPendingInitialOnboardingOpen()
         }
 
-        if !isInstalledInApplicationsFolder() && !UserDefaults.standard.bool(forKey: "dismissedInstallPrompt") {
+        if !isInstalledInApplicationsFolder() && !UserDefaults.standard.bool(forKey: dismissedInstallPromptDefaultsKey) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 Task { @MainActor in
                     self.showInstallPrompt()
@@ -54,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let response = alert.runModal()
 
         if alert.suppressionButton?.state == .on {
-            UserDefaults.standard.set(true, forKey: "dismissedInstallPrompt")
+            UserDefaults.standard.set(true, forKey: dismissedInstallPromptDefaultsKey)
         }
 
         if response == .alertFirstButtonReturn {
@@ -80,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         if DebugFlags.forceOnboarding { return true }
         #endif
-        return !UserDefaults.standard.bool(forKey: "onboardingComplete")
+        return !UserDefaults.standard.bool(forKey: onboardingCompleteDefaultsKey)
     }
 
     private func flushPendingInitialOnboardingOpen() {
@@ -98,11 +89,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct HoldToTalkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var engine = DictationEngine()
+    @StateObject private var engine: DictationEngine
+    @State private var hasPreparedFreshOnboardingSession: Bool
     @Environment(\.openWindow) private var openWindow
     #if canImport(Sparkle)
     private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     #endif
+
+    init() {
+        let shouldReset = shouldResetAppStateForFreshOnboarding()
+        if shouldReset {
+            resetPersistedAppStateForFreshOnboarding()
+        }
+        _engine = StateObject(wrappedValue: DictationEngine())
+        _hasPreparedFreshOnboardingSession = State(initialValue: shouldReset)
+    }
 
     private var shouldShowOnboarding: Bool {
         #if DEBUG
@@ -314,8 +315,16 @@ struct HoldToTalkApp: App {
 
     @MainActor
     private func openOnboardingWindow() {
+        prepareFreshOnboardingIfNeeded()
         openWindow(id: "onboarding")
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @MainActor
+    private func prepareFreshOnboardingIfNeeded() {
+        guard !engine.onboardingComplete, !hasPreparedFreshOnboardingSession else { return }
+        engine.resetForFreshOnboarding()
+        hasPreparedFreshOnboardingSession = true
     }
 
     private func configureAppDelegate() {

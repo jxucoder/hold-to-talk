@@ -8,13 +8,13 @@ struct OnboardingView: View {
     @ObservedObject var modelManager: ModelManager
     @Environment(\.dismiss) private var dismiss
 
-    @AppStorage("onboardingStep") private var step = 0
+    @AppStorage(onboardingStepDefaultsKey) private var step = 0
     @State private var hasMicrophone = false
     @State private var hasAccessibility = false
     @State private var hasInputMonitoring = false
     @State private var downloadStarted = false
-    @State private var hasShownAccessibilityPrompt = UserDefaults.standard.bool(forKey: accessibilityPromptedDefaultsKey)
-    @State private var hasShownInputMonitoringPrompt = UserDefaults.standard.bool(forKey: inputMonitoringPromptedDefaultsKey)
+    @AppStorage(accessibilityPromptedDefaultsKey) private var hasShownAccessibilityPrompt = false
+    @AppStorage(inputMonitoringPromptedDefaultsKey) private var hasShownInputMonitoringPrompt = false
     @State private var isRequestingPermissions = false
     @State private var isInstallingToApplications = false
     @State private var installErrorMessage: String?
@@ -27,7 +27,7 @@ struct OnboardingView: View {
         #if DEBUG
         if let override = DebugFlags.onboardingStep {
             let clamped = max(0, min(override, 3))
-            UserDefaults.standard.set(clamped, forKey: "onboardingStep")
+            UserDefaults.standard.set(clamped, forKey: onboardingStepDefaultsKey)
             print("[debug] Starting onboarding at step \(clamped).")
         }
         #endif
