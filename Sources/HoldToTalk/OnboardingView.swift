@@ -94,9 +94,13 @@ struct OnboardingView: View {
 
             Spacer()
         }
-        .frame(width: 480, height: 520)
+        .frame(width: 480, height: onboardingWindowHeight)
         .animation(.easeInOut(duration: 0.3), value: step)
         .background(OnboardingWindowReader(window: $onboardingWindow))
+    }
+
+    private var onboardingWindowHeight: CGFloat {
+        step == 1 ? 576 : 520
     }
 
     // MARK: - Step 1: Welcome
@@ -593,8 +597,7 @@ struct OnboardingView: View {
             }
 
             Button("Start Using Hold to Talk") {
-                engine.completeOnboarding()
-                dismiss()
+                completeOnboardingAndCloseWindow()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -774,6 +777,16 @@ struct OnboardingView: View {
             NSApp.activate(ignoringOtherApps: true)
             onboardingWindow.makeKeyAndOrderFront(nil)
             onboardingWindow.orderFrontRegardless()
+        }
+    }
+
+    private func completeOnboardingAndCloseWindow() {
+        hotkeyTester.remove()
+        engine.completeOnboarding()
+        if let onboardingWindow {
+            onboardingWindow.close()
+        } else {
+            dismiss()
         }
     }
 
