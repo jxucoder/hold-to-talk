@@ -9,8 +9,8 @@ let canvasRect = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
 let titleRect = CGRect(x: 56, y: 330, width: 608, height: 52)
 let subtitleRect = CGRect(x: 88, y: 292, width: 544, height: 24)
 let requirementRect = CGRect(x: 212, y: 250, width: 296, height: 32)
-let leftDropRect = CGRect(x: 116, y: 146, width: 144, height: 102)
-let rightDropRect = CGRect(x: 460, y: 146, width: 144, height: 102)
+let leftDropRect = CGRect(x: 116, y: 138, width: 144, height: 102)
+let rightDropRect = CGRect(x: 460, y: 138, width: 144, height: 102)
 let footerRect = CGRect(x: 122, y: 34, width: 476, height: 18)
 let arrowY: CGFloat = 194
 let arrowStartX: CGFloat = 298
@@ -139,7 +139,8 @@ func drawRequirementsBadge() {
 }
 
 func drawDropZone(in rect: CGRect, dashed: Bool) {
-  let shadowRect = rect.insetBy(dx: -8, dy: -8)
+  let shadowInset: CGFloat = dashed ? -4 : -8
+  let shadowRect = rect.insetBy(dx: shadowInset, dy: shadowInset)
   let shadowPath = NSBezierPath(roundedRect: shadowRect, xRadius: 26, yRadius: 26)
   NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: dashed ? 0.42 : 0.34).setFill()
   shadowPath.fill()
@@ -160,6 +161,43 @@ func drawDropZone(in rect: CGRect, dashed: Bool) {
     path.lineWidth = 1.2
     path.stroke()
   }
+}
+
+func drawApplicationsFolder(in rect: CGRect) {
+  let bodyRect = CGRect(x: rect.minX + 20, y: rect.minY + 18, width: 104, height: 70)
+  let tabRect = CGRect(x: bodyRect.minX + 10, y: bodyRect.maxY - 2, width: 34, height: 16)
+
+  let tabPath = NSBezierPath(roundedRect: tabRect, xRadius: 8, yRadius: 8)
+  let bodyPath = NSBezierPath(roundedRect: bodyRect, xRadius: 14, yRadius: 14)
+
+  let tabGradient = NSGradient(
+    colors: [
+      NSColor(calibratedRed: 0.651, green: 0.855, blue: 0.992, alpha: 0.95),
+      NSColor(calibratedRed: 0.522, green: 0.765, blue: 0.960, alpha: 0.95)
+    ]
+  )
+  tabGradient?.draw(in: tabPath, angle: 90)
+
+  let bodyGradient = NSGradient(
+    colors: [
+      NSColor(calibratedRed: 0.420, green: 0.761, blue: 0.964, alpha: 0.97),
+      NSColor(calibratedRed: 0.278, green: 0.655, blue: 0.912, alpha: 0.97)
+    ]
+  )
+  bodyGradient?.draw(in: bodyPath, angle: 90)
+
+  NSColor(calibratedRed: 0.267, green: 0.553, blue: 0.812, alpha: 0.42).setStroke()
+  tabPath.lineWidth = 1.0
+  bodyPath.lineWidth = 1.0
+  tabPath.stroke()
+  bodyPath.stroke()
+
+  let highlightPath = NSBezierPath()
+  highlightPath.move(to: CGPoint(x: bodyRect.minX + 12, y: bodyRect.maxY - 10))
+  highlightPath.line(to: CGPoint(x: bodyRect.maxX - 12, y: bodyRect.maxY - 10))
+  NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 0.32).setStroke()
+  highlightPath.lineWidth = 2.0
+  highlightPath.stroke()
 }
 
 func drawTitle(in rect: CGRect) {
@@ -234,6 +272,7 @@ drawTopGlow(in: canvasRect)
 drawRequirementsBadge()
 drawDropZone(in: leftDropRect, dashed: false)
 drawDropZone(in: rightDropRect, dashed: true)
+drawApplicationsFolder(in: rightDropRect)
 drawTitle(in: canvasRect)
 drawArrow(in: context)
 
