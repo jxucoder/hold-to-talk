@@ -15,7 +15,13 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 - **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
 
 <p align="center">
-  <video src="Resources/demo.mp4" width="680" autoplay loop muted playsinline></video>
+  <a href="https://jxucoder.github.io/hold-to-talk/demo.mp4">
+    <img src="Resources/demo.gif" width="680" alt="Hold to Talk demo">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://jxucoder.github.io/hold-to-talk/demo.mp4">Watch the demo video</a>
 </p>
 
 ## Install
