@@ -23,7 +23,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAccessibilityUsageDescription</key>
-	<string>Hold to Talk needs accessibility access to paste dictated text into the app you are using.</string>
+	<string>Hold to Talk needs keyboard access to type dictated text into the app you are using.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Hold to Talk needs microphone access for voice dictation.</string>
 	<key>SUFeedURL</key>
