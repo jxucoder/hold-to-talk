@@ -375,15 +375,13 @@ final class DictationEngine: ObservableObject {
             // can be cleared at the end of this function without a race.
             let insertText = finalText + " "
             let insertBundleID = recordingTargetBundleID
-            let insertPID = recordingTargetAppPID
             // TextInserter.insert() is synchronous and may call usleep() per character in typing
             // profiles (e.g. 2ms × 3000 chars ≈ 6s for long dictation in Cursor/Slack/VSCode).
             // Run it off the main actor so the HUD and all animations remain responsive.
             let report = await Task.detached(priority: .userInitiated) {
                 TextInserter.insert(
                     insertText,
-                    targetBundleID: insertBundleID,
-                    targetPID: insertPID
+                    targetBundleID: insertBundleID
                 )
             }.value
             if report.success {

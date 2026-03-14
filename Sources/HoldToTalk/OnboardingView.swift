@@ -60,7 +60,7 @@ struct OnboardingView: View {
         var subtitle: String {
             switch self {
             case .microphone: "Record your voice for transcription."
-            case .accessibility: "Paste text into the app you are using."
+            case .accessibility: "Type dictated text into any application."
             case .inputMonitoring: "Listen for your hold-to-talk hotkey globally."
             }
         }
