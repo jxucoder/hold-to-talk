@@ -1,7 +1,6 @@
 import SwiftUI
 import ServiceManagement
 import AVFoundation
-import ApplicationServices
 
 struct SettingsView: View {
     @ObservedObject var engine: DictationEngine
@@ -25,7 +24,7 @@ struct SettingsView: View {
     private var isActiveModelDownloaded: Bool { modelManager.downloaded.contains(activeModelID) }
     private var isActiveModelDownloading: Bool { modelManager.downloading.contains(activeModelID) }
     private var allChecksHealthy: Bool {
-        engine.hasMicrophone && engine.hasAccessibility && engine.hasInputMonitoring && isActiveModelDownloaded
+        engine.hasMicrophone && engine.hasPostEvent && engine.hasInputMonitoring && isActiveModelDownloaded
     }
 
     var body: some View {
@@ -95,9 +94,9 @@ struct SettingsView: View {
                     details: engine.hasMicrophone ? "Granted" : "Not granted"
                 )
                 statusRow(
-                    title: "Accessibility",
-                    ok: engine.hasAccessibility,
-                    details: engine.hasAccessibility ? "Granted" : "Not granted"
+                    title: "Keyboard Access",
+                    ok: engine.hasPostEvent,
+                    details: engine.hasPostEvent ? "Granted" : "Not granted"
                 )
                 statusRow(
                     title: "Input Monitoring",
@@ -404,11 +403,11 @@ struct SettingsView: View {
             return
         }
 
-        _ = requestAccessibilityPermission()
+        _ = requestPostEventPermission()
         refreshPermissionSnapshot()
-        if !engine.hasAccessibility {
+        if !engine.hasPostEvent {
             pendingFixInputMonitoring = true
-            diagnosticsMessage = "Enable Accessibility, then return to Hold to Talk."
+            diagnosticsMessage = "Enable Keyboard Access, then return to Hold to Talk."
             isRunningEnvironmentFix = false
             return
         }
@@ -418,7 +417,7 @@ struct SettingsView: View {
 
     private func continueGuidedFixIfNeeded() {
         guard pendingFixInputMonitoring else { return }
-        guard engine.hasAccessibility else { return }
+        guard engine.hasPostEvent else { return }
 
         pendingFixInputMonitoring = false
         finishGuidedEnvironmentFix()
@@ -467,8 +466,8 @@ struct SettingsView: View {
     }
 
     @discardableResult
-    private func requestAccessibilityPermission() -> PermissionRequestResult {
-        requestAccessibilityAccess()
+    private func requestPostEventPermission() -> PermissionRequestResult {
+        requestPostEventAccess()
     }
 
     @discardableResult

@@ -1,5 +1,4 @@
 import SwiftUI
-import ApplicationServices
 import AVFoundation
 #if canImport(Sparkle)
 import Sparkle
@@ -202,7 +201,7 @@ struct HoldToTalkApp: App {
                 Divider()
             }
 
-            if !engine.hasMicrophone || !engine.hasAccessibility || !engine.hasInputMonitoring {
+            if !engine.hasMicrophone || !engine.hasPostEvent || !engine.hasInputMonitoring {
                 VStack(alignment: .leading, spacing: 4) {
                     if !engine.hasMicrophone {
                         permissionWarningRow("Microphone not granted")
@@ -216,10 +215,10 @@ struct HoldToTalkApp: App {
                         .font(.caption)
                     }
 
-                    if !engine.hasAccessibility {
-                        permissionWarningRow("Accessibility not granted")
-                        Button("Grant Accessibility…") {
-                            _ = requestAccessibilityAccess()
+                    if !engine.hasPostEvent {
+                        permissionWarningRow("Keyboard Access not granted")
+                        Button("Grant Keyboard Access…") {
+                            _ = requestPostEventAccess()
                         }
                         .font(.caption)
                     }

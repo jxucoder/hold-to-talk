@@ -40,10 +40,7 @@ enum TextInserter {
     private enum Strategy: String {
         case keycodeTyping = "keycodeTyping"
         case unicodeChunked = "unicodeChunked"
-        case accessibilitySelected = "ax.selectedText"
-        case accessibilityValue = "ax.valueReplace"
         case syntheticTyping = "syntheticTyping"
-        // appleScriptTyping removed: NSAppleScript is blocked by App Store sandbox
         case clipboardPaste = "clipboardPaste"
     }
 
@@ -60,7 +57,7 @@ enum TextInserter {
         let typingCharDelayMicros: useconds_t
     }
 
-    static func insert(_ text: String, targetBundleID: String? = nil, targetPID: pid_t? = nil) -> InsertReport {
+    static func insert(_ text: String, targetBundleID: String? = nil) -> InsertReport {
         guard !text.isEmpty else {
             return InsertReport(success: false, method: nil, attempts: ["empty text"], failureReason: nil)
         }
@@ -70,7 +67,7 @@ enum TextInserter {
         let profile = profile(for: bundleID)
         attempts.append("app=\(bundleID)")
         attempts.append("profile=\(profile.name)")
-        attempts.append("AX trusted: \(AXIsProcessTrusted() ? "yes" : "no")")
+        attempts.append("PostEvent: \(CGPreflightPostEventAccess() ? "yes" : "no")")
         let secureInputActive = isSecureInputActive()
         attempts.append("secureInput=\(secureInputActive ? "on" : "off")")
         if secureInputActive {
@@ -88,8 +85,7 @@ enum TextInserter {
                 switch run(
                     strategy: strategy,
                     text: text,
-                    typingCharDelayMicros: profile.typingCharDelayMicros,
-                    targetPID: targetPID
+                    typingCharDelayMicros: profile.typingCharDelayMicros
                 ) {
                 case .success:
                     attempts.append("pass\(pass + 1):\(strategy.rawValue)=ok")
@@ -110,18 +106,13 @@ enum TextInserter {
     private static func run(
         strategy: Strategy,
         text: String,
-        typingCharDelayMicros: useconds_t,
-        targetPID: pid_t?
+        typingCharDelayMicros: useconds_t
     ) -> StrategyOutcome {
         switch strategy {
         case .keycodeTyping:
             return insertViaKeycodeTyping(text, charDelayMicros: typingCharDelayMicros) ? .tentative : .fail
         case .unicodeChunked:
             return insertViaUnicodeChunks(text, charDelayMicros: typingCharDelayMicros) ? .tentative : .fail
-        case .accessibilitySelected:
-            return insertViaAccessibilitySelectedText(text, targetPID: targetPID) ? .success : .fail
-        case .accessibilityValue:
-            return insertViaAccessibilityValueReplace(text, targetPID: targetPID) ? .success : .fail
         case .syntheticTyping:
             return insertViaSyntheticTyping(text, charDelayMicros: typingCharDelayMicros) ? .tentative : .fail
         case .clipboardPaste:
@@ -130,7 +121,7 @@ enum TextInserter {
     }
 
     private static func profile(for bundleID: String) -> Profile {
-        // Electron/web editors often ignore AX mutations but accept native key events.
+        // Electron/web editors accept native key events.
         let typingFirstPrefixes = [
             "com.cursor.",
             "com.todesktop.",
@@ -144,7 +135,7 @@ enum TextInserter {
         if typingFirstPrefixes.contains(where: { bundleID.hasPrefix($0) }) {
             return Profile(
                 name: "typing-first",
-                order: [.unicodeChunked, .keycodeTyping, .syntheticTyping, .accessibilitySelected, .accessibilityValue, .clipboardPaste],
+                order: [.unicodeChunked, .keycodeTyping, .syntheticTyping, .clipboardPaste],
                 passes: 2,
                 typingCharDelayMicros: 2_000
             )
@@ -153,185 +144,18 @@ enum TextInserter {
         if bundleID.hasPrefix("com.google.Chrome") {
             return Profile(
                 name: "chrome-native",
-                order: [.unicodeChunked, .keycodeTyping, .syntheticTyping, .accessibilitySelected, .accessibilityValue, .clipboardPaste],
+                order: [.unicodeChunked, .keycodeTyping, .syntheticTyping, .clipboardPaste],
                 passes: 2,
                 typingCharDelayMicros: 5_000
             )
         }
 
         return Profile(
-            name: "accessibility-first",
-            order: [.accessibilitySelected, .accessibilityValue, .unicodeChunked, .keycodeTyping, .syntheticTyping, .clipboardPaste],
+            name: "default",
+            order: [.unicodeChunked, .keycodeTyping, .syntheticTyping, .clipboardPaste],
             passes: 2,
             typingCharDelayMicros: 800
         )
-    }
-
-    private static func insertViaAccessibilitySelectedText(_ text: String, targetPID: pid_t?) -> Bool {
-        for element in focusedElementCandidates(targetPID: targetPID) {
-            if setSelectedText(text, on: element) {
-                return true
-            }
-        }
-        return false
-    }
-
-    private static func insertViaAccessibilityValueReplace(_ text: String, targetPID: pid_t?) -> Bool {
-        for element in focusedElementCandidates(targetPID: targetPID) {
-            if replaceTextInValueAttribute(text, on: element) {
-                return true
-            }
-        }
-        return false
-    }
-
-    private static func focusedElementCandidates(targetPID: pid_t?) -> [AXUIElement] {
-        guard let focused = focusedElementWithRetry(targetPID: targetPID) else {
-            return []
-        }
-
-        var result: [AXUIElement] = [focused]
-        var current = focused
-        for _ in 0..<3 {
-            var parentRef: CFTypeRef?
-            let ok = AXUIElementCopyAttributeValue(
-                current,
-                kAXParentAttribute as CFString,
-                &parentRef
-            ) == .success
-            guard ok,
-                  let parentRef,
-                  CFGetTypeID(parentRef) == AXUIElementGetTypeID() else {
-                break
-            }
-            let parent = parentRef as! AXUIElement
-            result.append(parent)
-            current = parent
-        }
-        return result
-    }
-
-    private static func focusedElementWithRetry(targetPID: pid_t?) -> AXUIElement? {
-        for _ in 0..<3 {
-            if let element = focusedElement(targetPID: targetPID) {
-                return element
-            }
-            usleep(25_000)
-        }
-        return nil
-    }
-
-    private static func focusedElement(targetPID: pid_t?) -> AXUIElement? {
-        if let targetPID {
-            let app = AXUIElementCreateApplication(targetPID)
-            var focusedInAppRef: CFTypeRef?
-            let appFocusedResult = AXUIElementCopyAttributeValue(
-                app,
-                kAXFocusedUIElementAttribute as CFString,
-                &focusedInAppRef
-            )
-            if appFocusedResult == .success,
-               let focusedInAppRef,
-               CFGetTypeID(focusedInAppRef) == AXUIElementGetTypeID() {
-                return (focusedInAppRef as! AXUIElement)
-            }
-        }
-
-        let systemWide = AXUIElementCreateSystemWide()
-        var focusedElementRef: CFTypeRef?
-        let focusedResult = AXUIElementCopyAttributeValue(
-            systemWide,
-            kAXFocusedUIElementAttribute as CFString,
-            &focusedElementRef
-        )
-        guard focusedResult == .success,
-              let focusedElementRef,
-              CFGetTypeID(focusedElementRef) == AXUIElementGetTypeID() else {
-            return nil
-        }
-        return (focusedElementRef as! AXUIElement)
-    }
-
-    private static func setSelectedText(_ text: String, on focusedElement: AXUIElement) -> Bool {
-        var isSettable = DarwinBoolean(false)
-        let settableResult = AXUIElementIsAttributeSettable(
-            focusedElement,
-            kAXSelectedTextAttribute as CFString,
-            &isSettable
-        )
-        guard settableResult == .success, isSettable.boolValue else {
-            return false
-        }
-
-        let setResult = AXUIElementSetAttributeValue(
-            focusedElement,
-            kAXSelectedTextAttribute as CFString,
-            text as CFTypeRef
-        )
-        return setResult == .success
-    }
-
-    private static func replaceTextInValueAttribute(_ text: String, on focusedElement: AXUIElement) -> Bool {
-        var valueRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            focusedElement,
-            kAXValueAttribute as CFString,
-            &valueRef
-        ) == .success else {
-            return false
-        }
-
-        let currentText: String
-        if let s = valueRef as? String {
-            currentText = s
-        } else if let a = valueRef as? NSAttributedString {
-            currentText = a.string
-        } else {
-            return false
-        }
-
-        var rangeRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            focusedElement,
-            kAXSelectedTextRangeAttribute as CFString,
-            &rangeRef
-        ) == .success,
-        let rangeRef,
-        CFGetTypeID(rangeRef) == AXValueGetTypeID() else {
-            return false
-        }
-
-        let rangeAXValue = rangeRef as! AXValue
-        guard AXValueGetType(rangeAXValue) == .cfRange else {
-            return false
-        }
-
-        var selectedRange = CFRange()
-        guard AXValueGetValue(rangeAXValue, .cfRange, &selectedRange) else {
-            return false
-        }
-
-        let nsText = currentText as NSString
-        let safeLocation = max(0, min(selectedRange.location, nsText.length))
-        let safeLength = max(0, min(selectedRange.length, nsText.length - safeLocation))
-        let nsRange = NSRange(location: safeLocation, length: safeLength)
-        let newValue = nsText.replacingCharacters(in: nsRange, with: text)
-
-        var isSettable = DarwinBoolean(false)
-        guard AXUIElementIsAttributeSettable(
-            focusedElement,
-            kAXValueAttribute as CFString,
-            &isSettable
-        ) == .success, isSettable.boolValue else {
-            return false
-        }
-
-        let setResult = AXUIElementSetAttributeValue(
-            focusedElement,
-            kAXValueAttribute as CFString,
-            newValue as CFTypeRef
-        )
-        return setResult == .success
     }
 
     private static func insertViaSyntheticTyping(_ text: String, charDelayMicros: useconds_t) -> Bool {

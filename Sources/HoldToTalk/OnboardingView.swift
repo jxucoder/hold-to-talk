@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 import AVFoundation
-import ApplicationServices
 
 struct OnboardingView: View {
     @ObservedObject var engine: DictationEngine
@@ -11,9 +10,9 @@ struct OnboardingView: View {
 
     @AppStorage(onboardingStepDefaultsKey) private var step = 0
     @State private var hasMicrophone = false
-    @State private var hasAccessibility = false
+    @State private var hasPostEvent = false
     @State private var hasInputMonitoring = false
-    @AppStorage(accessibilityPromptedDefaultsKey) private var hasShownAccessibilityPrompt = false
+    @AppStorage(postEventPromptedDefaultsKey) private var hasShownPostEventPrompt = false
     @AppStorage(inputMonitoringPromptedDefaultsKey) private var hasShownInputMonitoringPrompt = false
     @State private var isRequestingPermissions = false
     @State private var isInstallingToApplications = false
@@ -36,7 +35,7 @@ struct OnboardingView: View {
 
     private enum PermissionRequirement: Int, CaseIterable, Identifiable {
         case microphone
-        case accessibility
+        case keyboardAccess
         case inputMonitoring
 
         var id: Self { self }
@@ -44,7 +43,7 @@ struct OnboardingView: View {
         var icon: String {
             switch self {
             case .microphone: "mic.fill"
-            case .accessibility: "hand.raised.fill"
+            case .keyboardAccess: "keyboard.badge.ellipsis"
             case .inputMonitoring: "keyboard.fill"
             }
         }
@@ -52,7 +51,7 @@ struct OnboardingView: View {
         var title: String {
             switch self {
             case .microphone: "Microphone"
-            case .accessibility: "Accessibility"
+            case .keyboardAccess: "Keyboard Access"
             case .inputMonitoring: "Input Monitoring"
             }
         }
@@ -60,7 +59,7 @@ struct OnboardingView: View {
         var subtitle: String {
             switch self {
             case .microphone: "Record your voice for transcription."
-            case .accessibility: "Paste text into the app you are using."
+            case .keyboardAccess: "Type dictated text into any application."
             case .inputMonitoring: "Listen for your hold-to-talk hotkey globally."
             }
         }
@@ -271,11 +270,11 @@ struct OnboardingView: View {
     // MARK: - Step 2: Permissions
 
     private var hasAllPermissions: Bool {
-        hasMicrophone && hasAccessibility && hasInputMonitoring
+        hasMicrophone && hasPostEvent && hasInputMonitoring
     }
 
     private var permissionsGrantedCount: Int {
-        [hasMicrophone, hasAccessibility, hasInputMonitoring].filter { $0 }.count
+        [hasMicrophone, hasPostEvent, hasInputMonitoring].filter { $0 }.count
     }
 
     private var completedPermissions: [PermissionRequirement] {
@@ -295,8 +294,8 @@ struct OnboardingView: View {
         }
     }
 
-    private var accessibilityActionTitle: String {
-        hasShownAccessibilityPrompt ? "Open Settings" : "Grant"
+    private var keyboardAccessActionTitle: String {
+        hasShownPostEventPrompt ? "Open Settings" : "Grant"
     }
 
     private var inputMonitoringActionTitle: String {
@@ -408,9 +407,9 @@ struct OnboardingView: View {
                     .foregroundStyle(.orange)
                 Button("Skip Permissions (Debug)") {
                     hasMicrophone = true
-                    hasAccessibility = true
+                    hasPostEvent = true
                     hasInputMonitoring = true
-                    engine.hasAccessibility = true
+                    engine.hasPostEvent = true
                     engine.hasMicrophone = true
                     engine.hasInputMonitoring = true
                     step = 2
@@ -742,8 +741,8 @@ struct OnboardingView: View {
         switch permission {
         case .microphone:
             hasMicrophone
-        case .accessibility:
-            hasAccessibility
+        case .keyboardAccess:
+            hasPostEvent
         case .inputMonitoring:
             hasInputMonitoring
         }
@@ -753,8 +752,8 @@ struct OnboardingView: View {
         switch permission {
         case .microphone:
             microphoneActionTitle
-        case .accessibility:
-            accessibilityActionTitle
+        case .keyboardAccess:
+            keyboardAccessActionTitle
         case .inputMonitoring:
             inputMonitoringActionTitle
         }
@@ -770,8 +769,8 @@ struct OnboardingView: View {
                 refreshPermissions()
                 isRequestingPermissions = false
             }
-        case .accessibility:
-            requestAccessibilityPermission()
+        case .keyboardAccess:
+            requestPostEventPermission()
             refreshPermissions()
             finishPermissionRequestAfterDelay()
         case .inputMonitoring:
@@ -819,9 +818,9 @@ struct OnboardingView: View {
         }
     }
 
-    private func requestAccessibilityPermission() {
-        _ = requestAccessibilityAccess()
-        hasShownAccessibilityPrompt = true
+    private func requestPostEventPermission() {
+        _ = requestPostEventAccess()
+        hasShownPostEventPrompt = true
         refreshPermissions()
     }
 
@@ -834,7 +833,7 @@ struct OnboardingView: View {
     private func refreshPermissions() {
         engine.refreshPermissionSnapshot()
         hasMicrophone = engine.hasMicrophone
-        hasAccessibility = engine.hasAccessibility
+        hasPostEvent = engine.hasPostEvent
         hasInputMonitoring = engine.hasInputMonitoring
     }
 

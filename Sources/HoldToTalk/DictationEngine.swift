@@ -1,5 +1,4 @@
 import SwiftUI
-import ApplicationServices
 import AppKit
 import Combine
 import AVFoundation
@@ -55,11 +54,11 @@ final class DictationEngine: ObservableObject {
         #endif
         return AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     }()
-    @Published var hasAccessibility: Bool = {
+    @Published var hasPostEvent: Bool = {
         #if DEBUG
         if DebugFlags.skipPermissions { return true }
         #endif
-        return AXIsProcessTrusted()
+        return CGPreflightPostEventAccess()
     }()
     @Published var hasInputMonitoring: Bool = {
         #if DEBUG
@@ -175,7 +174,7 @@ final class DictationEngine: ObservableObject {
         didStart = true
 
         refreshPermissionSnapshot()
-        if !hasAccessibility { pollAccessibilityPermission() }
+        if !hasPostEvent { pollPostEventPermission() }
 
         // Immediately re-check accessibility when the user switches back to the app
         activationObserver = NotificationCenter.default.addObserver(
@@ -194,14 +193,14 @@ final class DictationEngine: ObservableObject {
         if !hasInputMonitoring {
             debugLog("[holdtotalk] Input Monitoring missing — prompt deferred to onboarding/settings.")
         }
-        if !hasAccessibility {
-            debugLog("[holdtotalk] Accessibility missing — prompt deferred to onboarding/settings.")
+        if !hasPostEvent {
+            debugLog("[holdtotalk] PostEvent (keyboard access) missing — prompt deferred to onboarding/settings.")
         }
 
         // Pre-warm the audio engine so start() is near-instant on first hotkey press
         recorder.prepare()
 
-        debugLog("[holdtotalk] Permissions Mic=\(hasMicrophone), AX=\(hasAccessibility), InputMon=\(hasInputMonitoring)")
+        debugLog("[holdtotalk] Permissions Mic=\(hasMicrophone), PostEvent=\(hasPostEvent), InputMon=\(hasInputMonitoring)")
 
         // Use DispatchQueue.main.async instead of Task { @MainActor in } for lower-latency dispatch
         hotkeyManager.onPress = { [weak self] in
@@ -286,8 +285,8 @@ final class DictationEngine: ObservableObject {
         guard state == .idle else { return }
 
         refreshPermissionSnapshot()
-        if !hasAccessibility {
-            debugLog("[holdtotalk] ⚠ Accessibility not granted — text insertion will be blocked by macOS.")
+        if !hasPostEvent {
+            debugLog("[holdtotalk] ⚠ PostEvent (keyboard access) not granted — text insertion will be blocked by macOS.")
         }
         if !hasInputMonitoring {
             debugLog("[holdtotalk] ⚠ Input Monitoring not granted — global hotkey may not trigger in other apps.")
@@ -375,15 +374,13 @@ final class DictationEngine: ObservableObject {
             // can be cleared at the end of this function without a race.
             let insertText = finalText + " "
             let insertBundleID = recordingTargetBundleID
-            let insertPID = recordingTargetAppPID
             // TextInserter.insert() is synchronous and may call usleep() per character in typing
             // profiles (e.g. 2ms × 3000 chars ≈ 6s for long dictation in Cursor/Slack/VSCode).
             // Run it off the main actor so the HUD and all animations remain responsive.
             let report = await Task.detached(priority: .userInitiated) {
                 TextInserter.insert(
                     insertText,
-                    targetBundleID: insertBundleID,
-                    targetPID: insertPID
+                    targetBundleID: insertBundleID
                 )
             }.value
             if report.success {
@@ -430,19 +427,19 @@ final class DictationEngine: ObservableObject {
         "\(modelSize)|\(profile.rawValue)"
     }
 
-    /// Polls until Accessibility is granted so the UI updates live.
+    /// Polls until PostEvent (keyboard access) is granted so the UI updates live.
     /// Fix #14: stored so stop() can cancel it; uses try await (not try?) so it respects cancellation.
-    private func pollAccessibilityPermission() {
+    private func pollPostEventPermission() {
         axPollTask = Task { @MainActor in
             do {
-                while !AXIsProcessTrusted() {
+                while !CGPreflightPostEventAccess() {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
                 }
             } catch {
                 return  // Task was cancelled — exit cleanly
             }
-            hasAccessibility = true
-            print("[holdtotalk] Accessibility permission granted.")
+            hasPostEvent = true
+            print("[holdtotalk] PostEvent (keyboard access) permission granted.")
         }
     }
 
@@ -458,14 +455,14 @@ final class DictationEngine: ObservableObject {
     func refreshPermissionSnapshot() {
         #if DEBUG
         if DebugFlags.skipPermissions {
-            hasMicrophone = true
-            hasAccessibility = true
+                hasMicrophone = true
+            hasPostEvent = true
             hasInputMonitoring = true
             return
         }
         #endif
         hasMicrophone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        hasAccessibility = AXIsProcessTrusted()
+        hasPostEvent = CGPreflightPostEventAccess()
         hasInputMonitoring = CGPreflightListenEventAccess()
     }
 }
