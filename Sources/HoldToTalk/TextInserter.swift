@@ -67,7 +67,7 @@ enum TextInserter {
         let profile = profile(for: bundleID)
         attempts.append("app=\(bundleID)")
         attempts.append("profile=\(profile.name)")
-        attempts.append("AX trusted: \(AXIsProcessTrusted() ? "yes" : "no")")
+        attempts.append("PostEvent: \(CGPreflightPostEventAccess() ? "yes" : "no")")
         let secureInputActive = isSecureInputActive()
         attempts.append("secureInput=\(secureInputActive ? "on" : "off")")
         if secureInputActive {

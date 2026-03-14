@@ -1,8 +1,7 @@
 import AppKit
-import ApplicationServices
 import Foundation
 
-let accessibilityPromptedDefaultsKey = "hasPromptedAccessibility"
+let postEventPromptedDefaultsKey = "hasPromptedPostEvent"
 let inputMonitoringPromptedDefaultsKey = "hasPromptedInputMonitoring"
 
 enum PermissionRequestResult {
@@ -32,21 +31,20 @@ func openSystemSettings(_ anchor: String) {
 }
 
 @discardableResult
-func requestAccessibilityAccess() -> PermissionRequestResult {
-    if AXIsProcessTrusted() {
+func requestPostEventAccess() -> PermissionRequestResult {
+    if CGPreflightPostEventAccess() {
         return .granted
     }
 
     let defaults = UserDefaults.standard
-    if defaults.bool(forKey: accessibilityPromptedDefaultsKey) {
+    if defaults.bool(forKey: postEventPromptedDefaultsKey) {
         openSystemSettings("Privacy_Accessibility")
         return .openedSettings
     }
 
-    let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-    let trusted = AXIsProcessTrustedWithOptions(options)
-    defaults.set(true, forKey: accessibilityPromptedDefaultsKey)
-    return trusted ? .granted : .prompted
+    let granted = CGRequestPostEventAccess()
+    defaults.set(true, forKey: postEventPromptedDefaultsKey)
+    return (granted || CGPreflightPostEventAccess()) ? .granted : .prompted
 }
 
 @discardableResult
