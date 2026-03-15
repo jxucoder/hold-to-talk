@@ -1,5 +1,5 @@
 .PHONY: build install verify package package-zip package-dmg package-permission-test-dmg \
- notarize notarize-app notarize-dmg release permissions-reset reset-fresh-test run clean
+ notarize notarize-app notarize-dmg release permissions-reset reset-fresh-test test-reset uninstall run clean
 
 APP_NAME := HoldToTalk
 APP_BUNDLE := .build/$(APP_NAME).app
@@ -125,14 +125,16 @@ release: _check-direct-distribution notarize-app package-zip package-dmg notariz
 	@echo "  - $(DMG_PATH)"
 
 permissions-reset:
-	@echo "Resetting TCC permissions for $(BUNDLE_ID)"
-	@tccutil reset Microphone "$(BUNDLE_ID)" || true
-	@tccutil reset Accessibility "$(BUNDLE_ID)" || true
-	@tccutil reset ListenEvent "$(BUNDLE_ID)" || true
-	@echo "Done. Launch app from /Applications to re-run onboarding prompts."
+	@APP_USER="$(APP_USER)" bash scripts/reset-fresh-test.sh --yes --permissions-only
 
 reset-fresh-test:
 	@APP_USER="$(APP_USER)" bash scripts/reset-fresh-test.sh $(ARGS)
+
+test-reset:
+	@APP_USER="$(APP_USER)" bash scripts/reset-fresh-test.sh --yes
+
+uninstall:
+	@APP_USER="$(APP_USER)" bash scripts/reset-fresh-test.sh --yes
 
 run: build
 	open "$(APP_BUNDLE)"

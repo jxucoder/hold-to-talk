@@ -9,7 +9,12 @@ FAILED_PATHS=()
 
 usage() {
   cat <<'EOF'
-Usage: scripts/reset-fresh-test.sh [--yes]
+Usage: scripts/reset-fresh-test.sh [--yes] [--permissions-only]
+
+Preferred shortcut from the repo root:
+  make permissions-reset   # reset macOS TCC permissions only
+  make test-reset
+  make uninstall
 
 Removes HoldToTalk.app and app-specific local state so you can test from a clean slate:
 - /Applications/HoldToTalk.app
@@ -30,6 +35,8 @@ Environment:
 Notes:
   On newer macOS versions, deleting ~/Library/Containers/<bundle id> may require
   Full Disk Access for Terminal/iTerm even if the files are owned by your user.
+
+Use --permissions-only to skip uninstalling the app and clearing app state.
 EOF
 }
 
@@ -42,6 +49,9 @@ while (($# > 0)); do
       usage
       exit 0
       ;;
+    --permissions-only)
+      PERMISSIONS_ONLY=1
+      ;;
     *)
       echo "error: unknown argument: $1" >&2
       usage >&2
@@ -50,6 +60,8 @@ while (($# > 0)); do
   esac
   shift
 done
+
+PERMISSIONS_ONLY="${PERMISSIONS_ONLY:-0}"
 
 resolve_home() {
   local user="$1"
@@ -126,7 +138,7 @@ if [[ ! -d "${USER_HOME}" ]]; then
   exit 1
 fi
 
-if [[ -e "${SYSTEM_APP}" && "${EUID}" -ne 0 && ! -w "${SYSTEM_APP}" ]]; then
+if [[ "${PERMISSIONS_ONLY}" -ne 1 && -e "${SYSTEM_APP}" && "${EUID}" -ne 0 && ! -w "${SYSTEM_APP}" ]]; then
   echo "error: ${SYSTEM_APP} exists and is not writable by $(id -un)." >&2
   echo "re-run with: sudo APP_USER=${APP_USER} bash scripts/reset-fresh-test.sh --yes" >&2
   exit 1
@@ -149,13 +161,21 @@ APP_PATHS=(
 )
 
 if [[ "${ASSUME_YES}" -ne 1 ]]; then
-  cat <<EOF
+  if [[ "${PERMISSIONS_ONLY}" -eq 1 ]]; then
+    cat <<EOF
+This will reset HoldToTalk macOS permissions for user ${APP_USER} (${USER_HOME}):
+EOF
+    print_path "TCC: Microphone, Accessibility, ListenEvent"
+    print_path "App install and local app state will be preserved"
+  else
+    cat <<EOF
 This will delete HoldToTalk state for user ${APP_USER} (${USER_HOME}):
 EOF
-  for path in "${APP_PATHS[@]}"; do
-    print_path "${path}"
-  done
-  print_path "TCC: Microphone, Accessibility, ListenEvent"
+    for path in "${APP_PATHS[@]}"; do
+      print_path "${path}"
+    done
+    print_path "TCC: Microphone, Accessibility, ListenEvent"
+  fi
   printf 'Continue? [y/N] '
   read -r reply
   if [[ ! "${reply}" =~ ^[Yy]$ ]]; then
@@ -172,20 +192,23 @@ else
   pkill -u "${APP_USER}" -x "Autoupdate" >/dev/null 2>&1 || true
 fi
 
-for path in "${APP_PATHS[@]}"; do
-  remove_path "${path}"
-done
+if [[ "${PERMISSIONS_ONLY}" -ne 1 ]]; then
+  for path in "${APP_PATHS[@]}"; do
+    remove_path "${path}"
+  done
 
-remove_matches "${USER_HOME}/Library/Preferences/ByHost" "${BUNDLE_ID}*"
-remove_matches "${USER_HOME}/Library/Logs/DiagnosticReports" "${APP_NAME}*"
+  remove_matches "${USER_HOME}/Library/Preferences/ByHost" "${BUNDLE_ID}*"
+  remove_matches "${USER_HOME}/Library/Logs/DiagnosticReports" "${APP_NAME}*"
 
-run_as_app_user defaults delete "${BUNDLE_ID}" >/dev/null 2>&1 || true
+  run_as_app_user defaults delete "${BUNDLE_ID}" >/dev/null 2>&1 || true
+fi
+
 run_as_app_user tccutil reset Microphone "${BUNDLE_ID}" >/dev/null 2>&1 || true
 run_as_app_user tccutil reset Accessibility "${BUNDLE_ID}" >/dev/null 2>&1 || true
 run_as_app_user tccutil reset ListenEvent "${BUNDLE_ID}" >/dev/null 2>&1 || true
 run_as_app_user killall cfprefsd >/dev/null 2>&1 || true
 
-if [[ "${#FAILED_PATHS[@]}" -gt 0 ]]; then
+if [[ "${PERMISSIONS_ONLY}" -ne 1 && "${#FAILED_PATHS[@]}" -gt 0 ]]; then
   cat >&2 <<EOF
 warning: some paths could not be removed:
 EOF
@@ -200,7 +223,15 @@ app, then rerun this script. Everything else was still cleaned up.
 EOF
 fi
 
-cat <<EOF
+if [[ "${PERMISSIONS_ONLY}" -eq 1 ]]; then
+  cat <<EOF
+Hold to Talk permissions have been reset for ${APP_USER}.
+
+This did not remove the app or local app state. For a clean first-run onboarding
+test, use: make test-reset
+EOF
+else
+  cat <<EOF
 Hold to Talk has been removed for ${APP_USER}.
 
 Fresh-start test sequence:
@@ -208,3 +239,4 @@ Fresh-start test sequence:
   2. Launch it from /Applications
   3. Onboarding, models, and permissions should behave like first run
 EOF
+fi

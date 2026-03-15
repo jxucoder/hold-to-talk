@@ -58,6 +58,9 @@ cd hold-to-talk
 make build
 make install   # installs HoldToTalk.app to /Applications
 make run
+
+# Clean uninstall + reset local HoldToTalk state + reset permissions for first-run testing
+make test-reset
 ```
 
 Or open `Package.swift` in Xcode and run.
@@ -83,6 +86,11 @@ make release
 Ad-hoc signed builds are fine for local iteration, but they are not reliable for macOS
 Accessibility/Input Monitoring permission testing across rebuilds because TCC can treat
 each rebuild as a different app identity.
+
+All reset-related `make` targets route through `scripts/reset-fresh-test.sh` so cleanup
+logic stays in one place. For clean first-run onboarding tests, prefer `make test-reset`.
+`make permissions-reset` runs the same script in permissions-only mode and keeps the app
+plus local HoldToTalk state in place.
 
 ## Usage
 
