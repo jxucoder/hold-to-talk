@@ -48,6 +48,7 @@ and ListenEvent (for global hotkey detection). It does NOT use the Accessibility
 Use this sequence to test onboarding exactly as a first-time user:
 
 1. Remove the installed app plus app-specific state:
+   - Preferred: `make test-reset`
    - `make reset-fresh-test`
    - `bash scripts/reset-fresh-test.sh`
    - If `/Applications/HoldToTalk.app` is admin-owned: `sudo APP_USER=$USER bash scripts/reset-fresh-test.sh --yes`
@@ -55,6 +56,12 @@ Use this sequence to test onboarding exactly as a first-time user:
 2. Install app into `/Applications`:
    - `make install`
 3. Launch from `/Applications/HoldToTalk.app`
+
+## Reset Commands
+
+- `make test-reset`: full uninstall + app-state cleanup + TCC reset for first-run testing
+- `make uninstall`: same as `make test-reset`
+- `make permissions-reset`: same script, permissions-only mode; keeps the app and local state
 
 ## Why `/Applications` Matters
 
