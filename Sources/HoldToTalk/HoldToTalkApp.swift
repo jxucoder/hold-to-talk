@@ -205,7 +205,7 @@ struct HoldToTalkApp: App {
                 VStack(alignment: .leading, spacing: 4) {
                     if !engine.hasMicrophone {
                         permissionWarningRow("Microphone not granted")
-                        Button("Grant Microphone…") {
+                        Button("Enable Microphone…") {
                             AVCaptureDevice.requestAccess(for: .audio) { _ in
                                 Task { @MainActor in
                                     openSystemSettings("Privacy_Microphone")
@@ -217,7 +217,7 @@ struct HoldToTalkApp: App {
 
                     if !engine.hasPostEvent {
                         permissionWarningRow("Keyboard Access not granted")
-                        Button("Grant Keyboard Access…") {
+                        Button("Enable Keyboard Access…") {
                             _ = requestPostEventAccess()
                         }
                         .font(.caption)
@@ -225,7 +225,7 @@ struct HoldToTalkApp: App {
 
                     if !engine.hasInputMonitoring {
                         permissionWarningRow("Input Monitoring not granted")
-                        Button("Grant Input Monitoring…") {
+                        Button("Enable Input Monitoring…") {
                             _ = requestInputMonitoringAccess()
                         }
                         .font(.caption)

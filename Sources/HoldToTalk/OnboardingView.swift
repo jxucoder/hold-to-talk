@@ -287,20 +287,20 @@ struct OnboardingView: View {
 
     private var microphoneActionTitle: String {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .notDetermined: return "Grant"
+        case .notDetermined: return "Continue"
         case .authorized: return "Granted"
         case .denied, .restricted: return "Open Settings"
-        @unknown default: return "Grant"
+        @unknown default: return "Continue"
         }
     }
 
     private var keyboardAccessActionTitle: String {
-        hasShownPostEventPrompt ? "Open Settings" : "Grant"
+        hasShownPostEventPrompt ? "Open Settings" : "Continue"
     }
 
     private var inputMonitoringActionTitle: String {
         if hasInputMonitoring { return "Granted" }
-        return hasShownInputMonitoringPrompt ? "Open Settings" : "Grant"
+        return hasShownInputMonitoringPrompt ? "Open Settings" : "Continue"
     }
 
     private var permissionsStep: some View {
@@ -308,7 +308,7 @@ struct OnboardingView: View {
             Text("Permissions")
                 .font(.title2.bold())
 
-            Text("Grant the required permissions one at a time. This keeps the macOS prompts clear and predictable.")
+            Text("Enable the required permissions one at a time. This keeps the macOS prompts clear and predictable.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
