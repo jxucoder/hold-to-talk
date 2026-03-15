@@ -21,7 +21,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             flushPendingInitialOnboardingOpen()
         }
 
-        if !isInstalledInApplicationsFolder() && !UserDefaults.standard.bool(forKey: dismissedInstallPromptDefaultsKey) {
+        if shouldShowLaunchInstallPrompt(
+            installedInApplications: isInstalledInApplicationsFolder(),
+            installPromptDismissed: UserDefaults.standard.bool(forKey: dismissedInstallPromptDefaultsKey),
+            openingInitialOnboarding: shouldOpenInitialOnboarding
+        ) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 Task { @MainActor in
                     self.showInstallPrompt()
@@ -95,12 +99,17 @@ struct HoldToTalkApp: App {
     #endif
 
     init() {
-        let shouldReset = shouldResetAppStateForFreshOnboarding()
-        if shouldReset {
+        let launchPreparation = onboardingLaunchPreparation()
+        switch launchPreparation {
+        case .fullReset:
             resetPersistedAppStateForFreshOnboarding()
+        case .reopenAfterAppMove:
+            reopenOnboardingForCurrentInstall()
+        case .none:
+            break
         }
         _engine = StateObject(wrappedValue: DictationEngine())
-        _hasPreparedFreshOnboardingSession = State(initialValue: shouldReset)
+        _hasPreparedFreshOnboardingSession = State(initialValue: launchPreparation != .none)
     }
 
     private var shouldShowOnboarding: Bool {
@@ -359,6 +368,14 @@ private func makeInstallAlert(
     }
 
     return alert
+}
+
+func shouldShowLaunchInstallPrompt(
+    installedInApplications: Bool,
+    installPromptDismissed: Bool,
+    openingInitialOnboarding: Bool
+) -> Bool {
+    !installedInApplications && !installPromptDismissed && !openingInitialOnboarding
 }
 
 private struct OnboardingWindowConfigurator: NSViewRepresentable {

@@ -68,6 +68,10 @@ Or open `Package.swift` in Xcode and run.
 # Local packaging (ad-hoc signed): creates dist/HoldToTalk-v<version>.zip + .dmg
 make package
 
+# Permission-testing DMG (stable signature required for Accessibility/Input Monitoring)
+SIGNING_IDENTITY="Developer ID Application: <Your Name> (<TEAMID>)" \
+make package-permission-test-dmg
+
 # Production release (Developer ID + notarization + stapling): creates notarized zip + dmg
 SIGNING_IDENTITY="Developer ID Application: <Your Name> (<TEAMID>)" \
 APPLE_ID="<apple-id-email>" \
@@ -75,6 +79,10 @@ APPLE_TEAM_ID="<team-id>" \
 APPLE_APP_PASSWORD="<app-specific-password>" \
 make release
 ```
+
+Ad-hoc signed builds are fine for local iteration, but they are not reliable for macOS
+Accessibility/Input Monitoring permission testing across rebuilds because TCC can treat
+each rebuild as a different app identity.
 
 ## Usage
 

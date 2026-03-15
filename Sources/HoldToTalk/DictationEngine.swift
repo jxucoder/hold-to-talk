@@ -127,6 +127,7 @@ final class DictationEngine: ObservableObject {
 
     /// Called by OnboardingView when the user finishes the wizard.
     func completeOnboarding() {
+        rememberCompletedOnboardingForCurrentInstall()
         onboardingComplete = true
         start()
     }

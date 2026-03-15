@@ -4,8 +4,9 @@ import Foundation
 
 let postEventPromptedDefaultsKey = "hasPromptedPostEvent"
 let inputMonitoringPromptedDefaultsKey = "hasPromptedInputMonitoring"
+let stableCodeIdentityInfoPlistKey = "HTTStableCodeIdentity"
 
-enum PermissionRequestResult {
+enum PermissionRequestResult: Equatable {
     case granted
     case prompted
     case openedSettings
@@ -31,6 +32,7 @@ func checkPostEventAccess() -> Bool {
 
 /// Relaunches the app. Used when PostEvent permission is granted in System Settings
 /// but `CGPreflightPostEventAccess()` still returns a stale `false`.
+/// This is only useful when the current app has a stable code identity.
 func relaunchApp() {
     let url = Bundle.main.bundleURL
     let config = NSWorkspace.OpenConfiguration()
@@ -38,6 +40,10 @@ func relaunchApp() {
     NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in
         DispatchQueue.main.async { NSApp.terminate(nil) }
     }
+}
+
+func appHasStableCodeIdentity(infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:]) -> Bool {
+    infoDictionary[stableCodeIdentityInfoPlistKey] as? Bool ?? false
 }
 
 /// Opens the specified System Settings / System Preferences privacy pane.
@@ -61,35 +67,64 @@ func openSystemSettings(_ anchor: String) {
 }
 
 @discardableResult
-func requestPostEventAccess() -> PermissionRequestResult {
-    if checkPostEventAccess() {
-        return .granted
-    }
-
-    let defaults = UserDefaults.standard
-    if defaults.bool(forKey: postEventPromptedDefaultsKey) {
-        openSystemSettings("Privacy_Accessibility")
-        return .openedSettings
-    }
-
-    let granted = CGRequestPostEventAccess()
-    defaults.set(true, forKey: postEventPromptedDefaultsKey)
-    return (granted || checkPostEventAccess()) ? .granted : .prompted
+func requestPostEventAccess(
+    defaults: UserDefaults = .standard,
+    preflight: () -> Bool = checkPostEventAccess,
+    requestAccess: () -> Bool = CGRequestPostEventAccess,
+    settingsOpener: (String) -> Void = openSystemSettings
+) -> PermissionRequestResult {
+    requestPrivacyPermissionAccess(
+        defaults: defaults,
+        promptedDefaultsKey: postEventPromptedDefaultsKey,
+        settingsAnchor: "Privacy_Accessibility",
+        preflight: preflight,
+        requestAccess: requestAccess,
+        settingsOpener: settingsOpener
+    )
 }
 
 @discardableResult
-func requestInputMonitoringAccess() -> PermissionRequestResult {
-    if CGPreflightListenEventAccess() {
+func requestInputMonitoringAccess(
+    defaults: UserDefaults = .standard,
+    preflight: () -> Bool = CGPreflightListenEventAccess,
+    requestAccess: () -> Bool = CGRequestListenEventAccess,
+    settingsOpener: (String) -> Void = openSystemSettings
+) -> PermissionRequestResult {
+    requestPrivacyPermissionAccess(
+        defaults: defaults,
+        promptedDefaultsKey: inputMonitoringPromptedDefaultsKey,
+        settingsAnchor: "Privacy_ListenEvent",
+        preflight: preflight,
+        requestAccess: requestAccess,
+        settingsOpener: settingsOpener
+    )
+}
+
+private func requestPrivacyPermissionAccess(
+    defaults: UserDefaults,
+    promptedDefaultsKey: String,
+    settingsAnchor: String,
+    preflight: () -> Bool,
+    requestAccess: () -> Bool,
+    settingsOpener: (String) -> Void
+) -> PermissionRequestResult {
+    if preflight() {
         return .granted
     }
 
-    let defaults = UserDefaults.standard
-    if defaults.bool(forKey: inputMonitoringPromptedDefaultsKey) {
-        openSystemSettings("Privacy_ListenEvent")
+    if defaults.bool(forKey: promptedDefaultsKey) {
+        settingsOpener(settingsAnchor)
         return .openedSettings
     }
 
-    let granted = CGRequestListenEventAccess()
-    defaults.set(true, forKey: inputMonitoringPromptedDefaultsKey)
-    return (granted || CGPreflightListenEventAccess()) ? .granted : .prompted
+    let granted = requestAccess()
+    defaults.set(true, forKey: promptedDefaultsKey)
+    if granted || preflight() {
+        return .granted
+    }
+
+    // Some macOS builds do not present a visible sheet here, so fall through to the
+    // exact Settings pane on the first click instead of making the user click again.
+    settingsOpener(settingsAnchor)
+    return .openedSettings
 }

@@ -2,6 +2,8 @@ import Foundation
 
 let onboardingCompleteDefaultsKey = "onboardingComplete"
 let onboardingStepDefaultsKey = "onboardingStep"
+let onboardingCompletedAppPathDefaultsKey = "onboardingCompletedAppPath"
+let onboardingNeedsResumeAfterAppMoveDefaultsKey = "onboardingNeedsResumeAfterAppMove"
 let dismissedInstallPromptDefaultsKey = "dismissedInstallPrompt"
 let whisperModelDefaultsKey = "whisperModel"
 let transcriptionProfileDefaultsKey = "transcriptionProfile"
@@ -10,6 +12,12 @@ let cleanupPromptDefaultsKey = "cleanupPrompt"
 let hotkeyChoiceDefaultsKey = "hotkeyChoice"
 let diagnosticLoggingEnabledDefaultsKey = "diagnosticLoggingEnabled"
 
+enum OnboardingLaunchPreparation: Equatable {
+    case none
+    case fullReset
+    case reopenAfterAppMove
+}
+
 func shouldResetAppStateForFreshOnboarding(defaults: UserDefaults = .standard) -> Bool {
     #if DEBUG
     if DebugFlags.resetOnboarding {
@@ -17,6 +25,60 @@ func shouldResetAppStateForFreshOnboarding(defaults: UserDefaults = .standard) -
     }
     #endif
     return !defaults.bool(forKey: onboardingCompleteDefaultsKey)
+        && !defaults.bool(forKey: onboardingNeedsResumeAfterAppMoveDefaultsKey)
+}
+
+func onboardingLaunchPreparation(
+    defaults: UserDefaults = .standard,
+    currentAppURL: URL = Bundle.main.bundleURL
+) -> OnboardingLaunchPreparation {
+    #if DEBUG
+    if DebugFlags.resetOnboarding {
+        return .fullReset
+    }
+    #endif
+
+    if defaults.bool(forKey: onboardingNeedsResumeAfterAppMoveDefaultsKey) {
+        return .reopenAfterAppMove
+    }
+
+    if !defaults.bool(forKey: onboardingCompleteDefaultsKey) {
+        return .fullReset
+    }
+
+    let currentPath = normalizedAppBundlePath(currentAppURL)
+    if let storedPath = defaults.string(forKey: onboardingCompletedAppPathDefaultsKey) {
+        return storedPath == currentPath ? .none : .reopenAfterAppMove
+    }
+
+    // Existing installs from older builds should keep working without forcing onboarding again.
+    defaults.set(currentPath, forKey: onboardingCompletedAppPathDefaultsKey)
+    return .none
+}
+
+func rememberCompletedOnboardingForCurrentInstall(
+    defaults: UserDefaults = .standard,
+    currentAppURL: URL = Bundle.main.bundleURL
+) {
+    defaults.set(true, forKey: onboardingCompleteDefaultsKey)
+    defaults.removeObject(forKey: onboardingNeedsResumeAfterAppMoveDefaultsKey)
+    defaults.set(normalizedAppBundlePath(currentAppURL), forKey: onboardingCompletedAppPathDefaultsKey)
+}
+
+func reopenOnboardingForCurrentInstall(
+    defaults: UserDefaults = .standard,
+    currentAppURL: URL = Bundle.main.bundleURL,
+    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+) {
+    defaults.set(false, forKey: onboardingCompleteDefaultsKey)
+    defaults.set(true, forKey: onboardingNeedsResumeAfterAppMoveDefaultsKey)
+    defaults.set(
+        isInstalledInApplicationsFolder(appURL: currentAppURL, homeDirectory: homeDirectory) ? 1 : 0,
+        forKey: onboardingStepDefaultsKey
+    )
+    defaults.removeObject(forKey: postEventPromptedDefaultsKey)
+    defaults.removeObject(forKey: inputMonitoringPromptedDefaultsKey)
+    defaults.set(normalizedAppBundlePath(currentAppURL), forKey: onboardingCompletedAppPathDefaultsKey)
 }
 
 func holdToTalkApplicationSupportDirectory(
@@ -74,4 +136,8 @@ func resetPersistedAppStateForFreshOnboarding(
         guard fileManager.fileExists(atPath: cacheDirectory.path) else { continue }
         try? fileManager.removeItem(at: cacheDirectory)
     }
+}
+
+private func normalizedAppBundlePath(_ appURL: URL) -> String {
+    appURL.resolvingSymlinksInPath().standardizedFileURL.path
 }

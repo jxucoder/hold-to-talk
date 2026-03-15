@@ -1,4 +1,4 @@
-.PHONY: build install verify package package-zip package-dmg \
+.PHONY: build install verify package package-zip package-dmg package-permission-test-dmg \
  notarize notarize-app notarize-dmg release permissions-reset reset-fresh-test run clean
 
 APP_NAME := HoldToTalk
@@ -39,9 +39,16 @@ build:
 		plutil -remove SUFeedURL "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true; \
 		plutil -remove SUPublicEDKey "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true; \
 	else \
-		rsync -a --delete "$(SPARKLE_FRAMEWORK)" "$(APP_BUNDLE)/Contents/Frameworks/"; \
-		install_name_tool -add_rpath @executable_path/../Frameworks "$(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)" 2>/dev/null || true; \
+			rsync -a --delete "$(SPARKLE_FRAMEWORK)" "$(APP_BUNDLE)/Contents/Frameworks/"; \
+			install_name_tool -add_rpath @executable_path/../Frameworks "$(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)" 2>/dev/null || true; \
 	fi
+	@if [ "$(SIGNING_IDENTITY)" = "-" ]; then \
+		HTT_STABLE_CODE_IDENTITY=false; \
+	else \
+		HTT_STABLE_CODE_IDENTITY=true; \
+	fi; \
+	plutil -remove HTTStableCodeIdentity "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true; \
+	plutil -insert HTTStableCodeIdentity -bool $$HTT_STABLE_CODE_IDENTITY "$(APP_BUNDLE)/Contents/Info.plist"
 	@if [ "$(SIGNING_IDENTITY)" = "-" ]; then \
 		if [ "$(APP_STORE)" != "1" ]; then \
 			codesign -f --deep -s - "$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework"; \
@@ -83,6 +90,12 @@ package-dmg: _check-direct-distribution build
 		--app-bundle "$(APP_BUNDLE)" \
 		--volume-name "$(DMG_VOLUME_NAME)" \
 		--output "$(DMG_PATH)"
+	@if [ "$(SIGNING_IDENTITY)" = "-" ]; then \
+		echo "warning: $(DMG_PATH) is ad-hoc signed; Accessibility and Input Monitoring tests across rebuilds may require removing and re-adding HoldToTalk in System Settings."; \
+	fi
+
+package-permission-test-dmg: _check-direct-distribution _check-signing package-dmg
+	@echo "Packaged stable-signed DMG for macOS permission testing: $(DMG_PATH)"
 
 notarize: notarize-app
 
