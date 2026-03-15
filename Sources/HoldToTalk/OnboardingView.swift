@@ -374,6 +374,25 @@ struct OnboardingView: View {
                 }
             }
 
+            if currentPermission == .keyboardAccess && hasShownPostEventPrompt && !hasPostEvent {
+                VStack(spacing: 8) {
+                    Text("Already enabled Keyboard Access in System Settings?")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Text("macOS sometimes requires a relaunch before the app can detect the change.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Relaunch App") {
+                        relaunchApp()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .frame(maxWidth: 380)
+            }
+
             if currentPermission == .inputMonitoring && hasShownInputMonitoringPrompt && !hasInputMonitoring {
                 Text("Input Monitoring will turn green automatically once macOS confirms it. This can take a moment after approval.")
                     .font(.caption2)

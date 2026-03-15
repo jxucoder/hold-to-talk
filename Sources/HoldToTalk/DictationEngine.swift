@@ -58,7 +58,7 @@ final class DictationEngine: ObservableObject {
         #if DEBUG
         if DebugFlags.skipPermissions { return true }
         #endif
-        return CGPreflightPostEventAccess()
+        return checkPostEventAccess()
     }()
     @Published var hasInputMonitoring: Bool = {
         #if DEBUG
@@ -432,7 +432,7 @@ final class DictationEngine: ObservableObject {
     private func pollPostEventPermission() {
         axPollTask = Task { @MainActor in
             do {
-                while !CGPreflightPostEventAccess() {
+                while !checkPostEventAccess() {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
                 }
             } catch {
@@ -462,7 +462,7 @@ final class DictationEngine: ObservableObject {
         }
         #endif
         hasMicrophone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        hasPostEvent = CGPreflightPostEventAccess()
+        hasPostEvent = checkPostEventAccess()
         hasInputMonitoring = CGPreflightListenEventAccess()
     }
 }
