@@ -15,6 +15,8 @@ struct OnboardingView: View {
     @AppStorage(postEventPromptedDefaultsKey) private var hasShownPostEventPrompt = false
     @AppStorage(inputMonitoringPromptedDefaultsKey) private var hasShownInputMonitoringPrompt = false
     @State private var isRequestingPermissions = false
+    @State private var pendingPermissionReturn: PermissionRequirement?
+    @State private var shouldOfferKeyboardAccessRelaunch = false
     @State private var isInstallingToApplications = false
     @State private var installErrorMessage: String?
     @State private var onboardingWindow: NSWindow?
@@ -287,20 +289,25 @@ struct OnboardingView: View {
 
     private var microphoneActionTitle: String {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .notDetermined: return "Continue"
-        case .authorized: return "Granted"
-        case .denied, .restricted: return "Open Settings"
-        @unknown default: return "Continue"
+        case .notDetermined: return "Allow Microphone"
+        case .authorized: return "Microphone Granted"
+        case .denied, .restricted: return "Open Microphone Settings"
+        @unknown default: return "Allow Microphone"
         }
     }
 
     private var keyboardAccessActionTitle: String {
-        hasShownPostEventPrompt ? "Open Settings" : "Continue"
+        if hasPostEvent { return "Keyboard Access Granted" }
+        return hasShownPostEventPrompt ? "Open Keyboard Access Settings" : "Allow Keyboard Access"
     }
 
     private var inputMonitoringActionTitle: String {
-        if hasInputMonitoring { return "Granted" }
-        return hasShownInputMonitoringPrompt ? "Open Settings" : "Continue"
+        if hasInputMonitoring { return "Input Monitoring Granted" }
+        return hasShownInputMonitoringPrompt ? "Open Input Monitoring Settings" : "Allow Input Monitoring"
+    }
+
+    private var keyboardAccessCanUseRelaunchRecovery: Bool {
+        appHasStableCodeIdentity()
     }
 
     private var permissionsStep: some View {
@@ -374,21 +381,32 @@ struct OnboardingView: View {
                 }
             }
 
-            if currentPermission == .keyboardAccess && hasShownPostEventPrompt && !hasPostEvent {
+            if currentPermission == .keyboardAccess && shouldOfferKeyboardAccessRelaunch {
                 VStack(spacing: 8) {
-                    Text("Already enabled Keyboard Access in System Settings?")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Text("macOS sometimes requires a relaunch before the app can detect the change.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Relaunch App") {
-                        relaunchApp()
+                    if keyboardAccessCanUseRelaunchRecovery {
+                        Text("If Keyboard Access is already enabled but still looks pending, relaunch Hold to Talk once.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        Text("macOS can keep this permission stale until the app restarts.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        Button("Relaunch Hold to Talk") {
+                            relaunchApp()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    } else {
+                        Text("This build is ad-hoc signed, so relaunch may not refresh Keyboard Access after a rebuild.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        Text("If HoldToTalk is enabled in Accessibility but still stays pending, remove it and add it again, or rebuild with a stable signing identity.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                 }
                 .frame(maxWidth: 380)
             }
@@ -401,7 +419,7 @@ struct OnboardingView: View {
                     .frame(maxWidth: 380)
             }
 
-            Button("Continue") {
+            Button("Next: Download Model") {
                 step = 2
             }
             .buttonStyle(.borderedProminent)
@@ -450,6 +468,10 @@ struct OnboardingView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             isRequestingPermissions = false
             refreshPermissions()
+            if pendingPermissionReturn == .keyboardAccess && !hasPostEvent {
+                shouldOfferKeyboardAccessRelaunch = true
+            }
+            pendingPermissionReturn = nil
             refocusOnboardingWindow()
         }
     }
@@ -781,6 +803,8 @@ struct OnboardingView: View {
     private func requestPermission(_ permission: PermissionRequirement) {
         guard !isRequestingPermissions else { return }
         isRequestingPermissions = true
+        pendingPermissionReturn = nil
+        shouldOfferKeyboardAccessRelaunch = false
 
         switch permission {
         case .microphone:
@@ -789,11 +813,17 @@ struct OnboardingView: View {
                 isRequestingPermissions = false
             }
         case .keyboardAccess:
-            requestPostEventPermission()
+            let result = requestPostEventPermission()
+            if result != .granted {
+                pendingPermissionReturn = .keyboardAccess
+            }
             refreshPermissions()
             finishPermissionRequestAfterDelay()
         case .inputMonitoring:
-            requestInputMonitoringPermission()
+            let result = requestInputMonitoringPermission()
+            if result != .granted {
+                pendingPermissionReturn = .inputMonitoring
+            }
             refreshPermissions()
             finishPermissionRequestAfterDelay()
         }
@@ -837,16 +867,20 @@ struct OnboardingView: View {
         }
     }
 
-    private func requestPostEventPermission() {
-        _ = requestPostEventAccess()
+    @discardableResult
+    private func requestPostEventPermission() -> PermissionRequestResult {
+        let result = requestPostEventAccess()
         hasShownPostEventPrompt = true
         refreshPermissions()
+        return result
     }
 
-    private func requestInputMonitoringPermission() {
-        _ = requestInputMonitoringAccess()
+    @discardableResult
+    private func requestInputMonitoringPermission() -> PermissionRequestResult {
+        let result = requestInputMonitoringAccess()
         hasShownInputMonitoringPrompt = true
         refreshPermissions()
+        return result
     }
 
     private func refreshPermissions() {
@@ -854,6 +888,9 @@ struct OnboardingView: View {
         hasMicrophone = engine.hasMicrophone
         hasPostEvent = engine.hasPostEvent
         hasInputMonitoring = engine.hasInputMonitoring
+        if hasPostEvent {
+            shouldOfferKeyboardAccessRelaunch = false
+        }
     }
 
     private func refocusOnboardingWindow() {

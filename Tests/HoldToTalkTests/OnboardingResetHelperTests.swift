@@ -2,6 +2,57 @@ import XCTest
 @testable import HoldToTalk
 
 final class OnboardingResetHelperTests: XCTestCase {
+    func testOnboardingLaunchPreparationRequestsFullResetWhenOnboardingIncomplete() {
+        let defaults = UserDefaults(suiteName: #function)!
+        defer { defaults.removePersistentDomain(forName: #function) }
+
+        defaults.set(false, forKey: onboardingCompleteDefaultsKey)
+
+        XCTAssertEqual(
+            onboardingLaunchPreparation(
+                defaults: defaults,
+                currentAppURL: URL(fileURLWithPath: "/Applications/HoldToTalk.app", isDirectory: true)
+            ),
+            .fullReset
+        )
+    }
+
+    func testOnboardingLaunchPreparationStoresPathForExistingCompletedInstall() {
+        let defaults = UserDefaults(suiteName: #function)!
+        defer { defaults.removePersistentDomain(forName: #function) }
+
+        let appURL = URL(fileURLWithPath: "/Applications/HoldToTalk.app", isDirectory: true)
+        defaults.set(true, forKey: onboardingCompleteDefaultsKey)
+
+        XCTAssertEqual(
+            onboardingLaunchPreparation(defaults: defaults, currentAppURL: appURL),
+            .none
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: onboardingCompletedAppPathDefaultsKey),
+            appURL.path
+        )
+    }
+
+    func testOnboardingLaunchPreparationReopensOnboardingAfterAppMove() {
+        let defaults = UserDefaults(suiteName: #function)!
+        defer { defaults.removePersistentDomain(forName: #function) }
+
+        defaults.set(true, forKey: onboardingCompleteDefaultsKey)
+        defaults.set(
+            "/Volumes/HoldToTalk/HoldToTalk.app",
+            forKey: onboardingCompletedAppPathDefaultsKey
+        )
+
+        XCTAssertEqual(
+            onboardingLaunchPreparation(
+                defaults: defaults,
+                currentAppURL: URL(fileURLWithPath: "/Applications/HoldToTalk.app", isDirectory: true)
+            ),
+            .reopenAfterAppMove
+        )
+    }
+
     func testShouldResetAppStateForFreshOnboardingWhenOnboardingIncomplete() {
         let defaults = UserDefaults(suiteName: #function)!
         defer { defaults.removePersistentDomain(forName: #function) }
@@ -18,6 +69,57 @@ final class OnboardingResetHelperTests: XCTestCase {
         defaults.set(true, forKey: onboardingCompleteDefaultsKey)
 
         XCTAssertFalse(shouldResetAppStateForFreshOnboarding(defaults: defaults))
+    }
+
+    func testShouldNotResetAppStateForFreshOnboardingWhenResumingAfterAppMove() {
+        let defaults = UserDefaults(suiteName: #function)!
+        defer { defaults.removePersistentDomain(forName: #function) }
+
+        defaults.set(false, forKey: onboardingCompleteDefaultsKey)
+        defaults.set(true, forKey: onboardingNeedsResumeAfterAppMoveDefaultsKey)
+
+        XCTAssertFalse(shouldResetAppStateForFreshOnboarding(defaults: defaults))
+    }
+
+    func testReopenOnboardingForCurrentInstallResetsPermissionFlowWithoutWipingSettings() {
+        let defaults = UserDefaults(suiteName: #function)!
+        defer { defaults.removePersistentDomain(forName: #function) }
+
+        defaults.set(true, forKey: onboardingCompleteDefaultsKey)
+        defaults.set(3, forKey: onboardingStepDefaultsKey)
+        defaults.set(true, forKey: postEventPromptedDefaultsKey)
+        defaults.set(true, forKey: inputMonitoringPromptedDefaultsKey)
+        defaults.set("small", forKey: whisperModelDefaultsKey)
+        defaults.set("shift", forKey: hotkeyChoiceDefaultsKey)
+
+        let appURL = URL(fileURLWithPath: "/Applications/HoldToTalk.app", isDirectory: true)
+        reopenOnboardingForCurrentInstall(
+            defaults: defaults,
+            currentAppURL: appURL,
+            homeDirectory: URL(fileURLWithPath: "/Users/tester", isDirectory: true)
+        )
+
+        XCTAssertFalse(defaults.bool(forKey: onboardingCompleteDefaultsKey))
+        XCTAssertTrue(defaults.bool(forKey: onboardingNeedsResumeAfterAppMoveDefaultsKey))
+        XCTAssertEqual(defaults.integer(forKey: onboardingStepDefaultsKey), 1)
+        XCTAssertFalse(defaults.bool(forKey: postEventPromptedDefaultsKey))
+        XCTAssertFalse(defaults.bool(forKey: inputMonitoringPromptedDefaultsKey))
+        XCTAssertEqual(defaults.string(forKey: whisperModelDefaultsKey), "small")
+        XCTAssertEqual(defaults.string(forKey: hotkeyChoiceDefaultsKey), "shift")
+        XCTAssertEqual(defaults.string(forKey: onboardingCompletedAppPathDefaultsKey), appURL.path)
+    }
+
+    func testRememberCompletedOnboardingForCurrentInstallStoresCurrentPath() {
+        let defaults = UserDefaults(suiteName: #function)!
+        defer { defaults.removePersistentDomain(forName: #function) }
+
+        let appURL = URL(fileURLWithPath: "/Users/tester/Applications/HoldToTalk.app", isDirectory: true)
+        defaults.set(true, forKey: onboardingNeedsResumeAfterAppMoveDefaultsKey)
+        rememberCompletedOnboardingForCurrentInstall(defaults: defaults, currentAppURL: appURL)
+
+        XCTAssertTrue(defaults.bool(forKey: onboardingCompleteDefaultsKey))
+        XCTAssertFalse(defaults.bool(forKey: onboardingNeedsResumeAfterAppMoveDefaultsKey))
+        XCTAssertEqual(defaults.string(forKey: onboardingCompletedAppPathDefaultsKey), appURL.path)
     }
 
     func testResetPersistedAppStateClearsDefaultsAndAppDataButKeepsAppSupportRoot() throws {
