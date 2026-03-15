@@ -4,12 +4,12 @@
     <title>Hold to Talk</title>
     <link>https://jxucoder.github.io/holdtotalk/appcast.xml</link>
     <item>
-      <title>Version 1.1.1</title>
-      <pubDate>Sun, 15 Mar 2026 01:42:09 +0000</pubDate>
-      <sparkle:version>1.1.1</sparkle:version>
-      <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
+      <title>Version 1.1.2</title>
+      <pubDate>Sun, 15 Mar 2026 03:38:06 +0000</pubDate>
+      <sparkle:version>1.1.2</sparkle:version>
+      <sparkle:shortVersionString>1.1.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/jxucoder/hold-to-talk/releases/download/v1.1.1/HoldToTalk-v1.1.1.zip" length="3182322" type="application/octet-stream" sparkle:edSignature="TqUrCDRNZJRQs5WdCD/BSNMHtO/8t567fYu7jXKTrS7ITDKup5Aj5llFu7lKBrORvIoZyYzYE4vNTeAaRer9AQ==" />
+      <enclosure url="https://github.com/jxucoder/hold-to-talk/releases/download/v1.1.2/HoldToTalk-v1.1.2.zip" length="3185981" type="application/octet-stream" sparkle:edSignature="e5/IWU/srGzgV9D72UqKZxws6BtX7V5KQjd82vUNBQ2/v3gA1CNc0D+oqrgxknjwdRzwnTXceI61DlnjbbO7AA==" />
     </item>
   </channel>
 </rss>
