@@ -19,7 +19,7 @@ enum TranscriptionProfile: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .fast:
-            return "Lowest latency for long dictation."
+            return "Fastest transcription with minimal post-processing."
         case .balanced:
             return "Recommended default for speed and quality."
         case .best:
@@ -100,10 +100,11 @@ actor Transcriber {
         let durationSeconds = Double(audio.count) / Double(WhisperKit.sampleRate)
         let options = decodingOptions(forDuration: durationSeconds, profile: profile)
         let results = try await whisper.transcribe(audioArray: audio, decodeOptions: options)
-        return results
+        let joined = results
             .compactMap { $0.text }
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        return Self.deduplicateRepeatedPhrases(joined)
     }
 
     /// Tunes decode strategy per profile with duration-aware chunking.
@@ -115,11 +116,11 @@ actor Transcriber {
 
         switch profile {
         case .fast:
-            fallbackCount = 0
+            fallbackCount = 2
             workerCount = min(12, cores)
             chunkingThresholdSeconds = 12
         case .balanced:
-            fallbackCount = durationSeconds >= 20 ? 0 : 2
+            fallbackCount = 2
             workerCount = max(2, min(cores / 2, 8))
             chunkingThresholdSeconds = 25
         case .best:
@@ -136,6 +137,83 @@ actor Transcriber {
             concurrentWorkerCount: workerCount,
             chunkingStrategy: chunking
         )
+    }
+
+    /// Removes repeated phrases that Whisper sometimes hallucinates.
+    ///
+    /// **Pass 1** splits on sentence-ending punctuation (`.` `!` `?`) and removes
+    /// consecutive duplicate clauses. Comparison ignores trailing punctuation and
+    /// whitespace so `"I love dogs. I love dogs"` is still caught.
+    ///
+    /// **Pass 2** collapses runs of 3+ identical consecutive words into one,
+    /// preserving legitimate pairs like "that that" or "had had".
+    static func deduplicateRepeatedPhrases(_ text: String) -> String {
+        guard !text.isEmpty else { return text }
+
+        // --- Pass 1: sentence-level dedup (splits on . ! ?) ---
+        let sentenceDelimiters: Set<Character> = [".", "!", "?"]
+        let sentences: [String] = {
+            var result: [String] = []
+            var search = text.startIndex
+            while search < text.endIndex {
+                if let delimIdx = text[search...].firstIndex(where: { sentenceDelimiters.contains($0) }) {
+                    let end = text.index(after: delimIdx)
+                    var trailing = end
+                    while trailing < text.endIndex && text[trailing].isWhitespace {
+                        trailing = text.index(after: trailing)
+                    }
+                    result.append(String(text[search..<trailing]))
+                    search = trailing
+                } else {
+                    result.append(String(text[search...]))
+                    break
+                }
+            }
+            return result
+        }()
+
+        var deduped: [String] = []
+        for sentence in sentences {
+            // Strip punctuation and whitespace for comparison so
+            // "I love dogs." and "I love dogs" are treated as equal.
+            let normalized = sentence
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: .punctuationCharacters)
+                .lowercased()
+            if let last = deduped.last {
+                let lastNormalized = last
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: .punctuationCharacters)
+                    .lowercased()
+                if lastNormalized == normalized { continue }
+            }
+            deduped.append(sentence)
+        }
+        var result = deduped.joined()
+
+        // --- Pass 2: collapse runs of 3+ identical consecutive words ---
+        // Keeps legitimate pairs like "that that" or "had had" intact.
+        let words = result.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard words.count > 2 else { return result.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        var dedupedWords: [String] = []
+        var runCount = 1
+        for i in 1...words.count {
+            let prev = words[i - 1]
+            let curr = i < words.count ? words[i] : nil
+            if let curr, curr.lowercased() == prev.lowercased() {
+                runCount += 1
+            } else {
+                dedupedWords.append(prev)
+                if runCount == 2 {
+                    dedupedWords.append(prev)
+                }
+                runCount = 1
+            }
+        }
+        result = dedupedWords.joined(separator: " ")
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func runDecodeWarmup(profile: TranscriptionProfile) async throws {

@@ -359,10 +359,14 @@ final class DictationEngine: ObservableObject {
             // otherwise cleanup() is a no-op and the state flash is misleading.
             if cleanupEnabled && TextProcessor.isAvailable {
                 state = .cleaning
-                let cleaned = try await TextProcessor(prompt: cleanupPrompt).cleanup(raw)
-                if cleaned != raw {
-                    debugLogSensitive("[holdtotalk] Cleaned", text: cleaned)
-                    finalText = cleaned
+                do {
+                    let cleaned = try await TextProcessor(prompt: cleanupPrompt).cleanup(raw)
+                    if cleaned != raw {
+                        debugLogSensitive("[holdtotalk] Cleaned", text: cleaned)
+                        finalText = cleaned
+                    }
+                } catch {
+                    debugLog("[holdtotalk] Cleanup failed, using raw text: \(error)")
                 }
             }
             lastCleanText = finalText
