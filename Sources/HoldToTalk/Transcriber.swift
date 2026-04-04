@@ -100,11 +100,10 @@ actor Transcriber {
         let durationSeconds = Double(audio.count) / Double(WhisperKit.sampleRate)
         let options = decodingOptions(forDuration: durationSeconds, profile: profile)
         let results = try await whisper.transcribe(audioArray: audio, decodeOptions: options)
-        let joined = results
-            .compactMap { $0.text }
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return Self.deduplicateRepeatedPhrases(joined)
+        let texts = results.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let merged = Self.mergeOverlappingTexts(texts)
+        return Self.deduplicateRepeatedPhrases(merged)
     }
 
     /// Tunes decode strategy per profile with duration-aware chunking.
@@ -137,6 +136,71 @@ actor Transcriber {
             concurrentWorkerCount: workerCount,
             chunkingStrategy: chunking
         )
+    }
+
+    /// Merges consecutive transcription result texts by detecting and removing overlapping
+    /// regions at chunk boundaries.
+    ///
+    /// WhisperKit can produce multiple results whose audio windows overlap, causing the tail
+    /// of one result and the head of the next to contain the same (or very similar) words.
+    /// This function finds the longest suffix of `texts[i]` that matches a prefix of
+    /// `texts[i+1]` (using word-level comparison, case-insensitive, punctuation-stripped)
+    /// and removes the duplicate from the second text.
+    static func mergeOverlappingTexts(_ texts: [String]) -> String {
+        guard !texts.isEmpty else { return "" }
+        guard texts.count > 1 else { return texts[0] }
+
+        var merged = texts[0]
+        for i in 1..<texts.count {
+            let overlapLen = findWordOverlap(suffix: merged, prefix: texts[i])
+            if overlapLen > 0 {
+                // Drop the first `overlapLen` words from texts[i]
+                let nextWords = texts[i].split(separator: " ", omittingEmptySubsequences: true)
+                let remaining = nextWords.dropFirst(overlapLen).joined(separator: " ")
+                if !remaining.isEmpty {
+                    merged += " " + remaining
+                }
+            } else {
+                merged += " " + texts[i]
+            }
+        }
+        return merged.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Returns the number of overlapping words between the suffix of `suffix` and the
+    /// prefix of `prefix`. Comparison is case-insensitive with punctuation stripped.
+    /// Requires at least 3 matching words to avoid false positives.
+    private static func findWordOverlap(suffix: String, prefix: String) -> Int {
+        let normalize: (String) -> String = { word in
+            word.lowercased()
+                .filter { $0.isLetter || $0.isNumber || $0.isWhitespace }
+        }
+
+        let suffixWords = suffix.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        let prefixWords = prefix.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+
+        guard suffixWords.count >= 3, prefixWords.count >= 3 else { return 0 }
+
+        // Try progressively shorter suffix windows, starting from the longest plausible overlap.
+        // Cap at half the shorter text to avoid matching the entire text.
+        let maxOverlap = min(suffixWords.count, prefixWords.count, 40)
+
+        for length in stride(from: maxOverlap, through: 3, by: -1) {
+            let suffixSlice = suffixWords.suffix(length)
+            let prefixSlice = prefixWords.prefix(length)
+
+            let matches = zip(suffixSlice, prefixSlice).filter {
+                normalize($0.0) == normalize($0.1)
+            }.count
+
+            // Allow up to 1 mismatched word for every 5 words to handle
+            // truncated words at chunk boundaries (e.g. "bout" vs "about").
+            let tolerance = max(1, length / 5)
+            if matches >= length - tolerance {
+                return length
+            }
+        }
+        return 0
     }
 
     /// Removes repeated phrases that Whisper sometimes hallucinates.
