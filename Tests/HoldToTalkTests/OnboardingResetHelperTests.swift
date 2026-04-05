@@ -135,7 +135,6 @@ final class OnboardingResetHelperTests: XCTestCase {
         defaults.set(true, forKey: onboardingCompleteDefaultsKey)
         defaults.set(3, forKey: onboardingStepDefaultsKey)
         defaults.set("base", forKey: whisperModelDefaultsKey)
-        defaults.set("custom", forKey: cleanupPromptDefaultsKey)
 
         let appSupport = holdToTalkApplicationSupportDirectory(homeDirectory: home)
         let appSupportChild = appSupport.appendingPathComponent("models/cache.bin")
@@ -181,7 +180,6 @@ final class OnboardingResetHelperTests: XCTestCase {
         XCTAssertFalse(defaults.bool(forKey: onboardingCompleteDefaultsKey))
         XCTAssertNil(defaults.object(forKey: onboardingStepDefaultsKey))
         XCTAssertNil(defaults.object(forKey: whisperModelDefaultsKey))
-        XCTAssertNil(defaults.object(forKey: cleanupPromptDefaultsKey))
 
         XCTAssertTrue(fileManager.fileExists(atPath: appSupport.path))
         let appSupportContents = try fileManager.contentsOfDirectory(

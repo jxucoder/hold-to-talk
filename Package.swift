@@ -5,7 +5,6 @@ import PackageDescription
 let isAppStoreBuild = ProcessInfo.processInfo.environment["APP_STORE"] == "1"
 
 var packageDependencies: [Package.Dependency] = [
-    .package(path: "LocalPackages/SwiftLlama"),
 ]
 
 if !isAppStoreBuild {
@@ -14,7 +13,7 @@ if !isAppStoreBuild {
     )
 }
 
-var executableDependencies: [Target.Dependency] = ["sherpa_onnx", "SwiftLlama"]
+var executableDependencies: [Target.Dependency] = ["sherpa_onnx"]
 
 if !isAppStoreBuild {
     executableDependencies.append("Sparkle")
@@ -22,6 +21,7 @@ if !isAppStoreBuild {
 
 let package = Package(
     name: "HoldToTalk",
+    defaultLocalization: "en",
     platforms: [.macOS(.v15)],
     dependencies: packageDependencies,
     targets: [

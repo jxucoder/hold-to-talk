@@ -232,16 +232,6 @@ final class DownloadProgressDelegate: NSObject, URLSessionTaskDelegate, Sendable
         self.handler = handler
     }
 
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        didSendBodyData bytesSent: Int64,
-        totalBytesSent: Int64,
-        totalBytesExpectedToSend: Int64
-    ) {
-        // This delegate method is for uploads, not downloads
-    }
-
     nonisolated func urlSession(
         _ session: URLSession,
         didCreateTask task: URLSessionTask

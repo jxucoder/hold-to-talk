@@ -41,7 +41,7 @@
                 <string>CA92.1</string> <!-- Read/write app settings -->
             </array>
         </dict>
-        <!-- File timestamp APIs (used by WhisperKit model management) -->
+        <!-- File timestamp APIs (used by speech model management) -->
         <dict>
             <key>NSPrivacyAccessedAPIType</key>
             <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>

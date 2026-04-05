@@ -150,10 +150,13 @@ actor Transcriber {
             provider: "cpu"
         )
 
-        let vad = SherpaOnnxVoiceActivityDetectorWrapper(
+        guard let vad = SherpaOnnxVoiceActivityDetectorWrapper(
             config: &vadConfig,
             buffer_size_in_seconds: 120
-        )
+        ) else {
+            NSLog("[holdtotalk] WARNING: Failed to create VAD. Falling back to silence-gap splitting.")
+            return splitAtSilenceGaps(audio, sampleRate: sampleRate)
+        }
 
         // Feed audio in windowSize chunks as required by Silero VAD
         let windowSize = 512
@@ -506,6 +509,20 @@ actor Transcriber {
             modelConfig: modelConfig,
             blankPenalty: 2.0
         )
-        return SherpaOnnxOfflineRecognizer(config: &config)
+        guard let recognizer = SherpaOnnxOfflineRecognizer(config: &config) else {
+            throw TranscriberError.modelLoadFailed
+        }
+        return recognizer
+    }
+}
+
+enum TranscriberError: LocalizedError {
+    case modelLoadFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .modelLoadFailed:
+            return "Failed to load speech recognition model. The model files may be corrupt — try deleting and re-downloading."
+        }
     }
 }

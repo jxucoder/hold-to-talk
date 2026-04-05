@@ -10,7 +10,7 @@
     <key>com.apple.security.device.audio-input</key>
     <true/>
 
-    <!-- Network access — required for WhisperKit model downloads -->
+    <!-- Network access — required for speech model downloads -->
     <key>com.apple.security.network.client</key>
     <true/>
 

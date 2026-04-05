@@ -767,11 +767,11 @@ class SherpaOnnxOfflineRecognizer {
   /// A pointer to the underlying counterpart in C
   private let recognizer: OpaquePointer
 
-  init(
+  init?(
     config: UnsafePointer<SherpaOnnxOfflineRecognizerConfig>
   ) {
     guard let ptr = SherpaOnnxCreateOfflineRecognizer(config) else {
-      fatalError("Failed to create SherpaOnnxOfflineRecognizer")
+      return nil
     }
     self.recognizer = ptr
   }
@@ -965,9 +965,9 @@ class SherpaOnnxVoiceActivityDetectorWrapper {
   /// A pointer to the underlying counterpart in C
   private let vad: OpaquePointer
 
-  init(config: UnsafePointer<SherpaOnnxVadModelConfig>, buffer_size_in_seconds: Float) {
+  init?(config: UnsafePointer<SherpaOnnxVadModelConfig>, buffer_size_in_seconds: Float) {
     guard let vad = SherpaOnnxCreateVoiceActivityDetector(config, buffer_size_in_seconds) else {
-      fatalError("SherpaOnnxCreateVoiceActivityDetector returned nil")
+      return nil
     }
     self.vad = vad
   }

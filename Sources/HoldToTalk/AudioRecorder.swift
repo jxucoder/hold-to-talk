@@ -1,6 +1,6 @@
 import AVFoundation
 
-/// Captures microphone audio into a 16 kHz mono float buffer for Whisper.
+/// Captures microphone audio into a 16 kHz mono float buffer for speech recognition.
 /// Thread-safe via NSLock; marked Sendable for cross-actor usage.
 ///
 /// The audio engine is pre-warmed on `prepare()` so that `start()` only installs
@@ -88,7 +88,7 @@ final class AudioRecorder: @unchecked Sendable {
 
     // MARK: - Resampling
 
-    /// Concatenates captured buffers and resamples to 16 kHz mono for Whisper.
+    /// Concatenates captured buffers and resamples to 16 kHz mono for speech recognition.
     private func resample(buffers: [AVAudioPCMBuffer]) -> [Float] {
         let srcFormat = buffers[0].format
         let totalFrames = buffers.reduce(0) { $0 + Int($1.frameLength) }
