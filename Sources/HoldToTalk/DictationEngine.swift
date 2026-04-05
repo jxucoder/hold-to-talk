@@ -3,21 +3,19 @@ import AppKit
 import Combine
 import AVFoundation
 
-/// Orchestrates the record -> transcribe -> cleanup -> insert pipeline.
+/// Orchestrates the record -> transcribe -> insert pipeline.
 @MainActor
 final class DictationEngine: ObservableObject {
     enum State: Equatable {
         case idle
         case recording
         case transcribing
-        case cleaning
 
         var label: String {
             switch self {
             case .idle:         "Ready"
             case .recording:    "Recording..."
             case .transcribing: "Transcribing..."
-            case .cleaning:     "Cleaning..."
             }
         }
 
@@ -26,7 +24,6 @@ final class DictationEngine: ObservableObject {
             case .idle:         "mic"
             case .recording:    "mic.fill"
             case .transcribing: "bubble.left"
-            case .cleaning:     "sparkles"
             }
         }
 
@@ -35,7 +32,6 @@ final class DictationEngine: ObservableObject {
             case .idle:         .green
             case .recording:    .red
             case .transcribing: .orange
-            case .cleaning:     .blue
             }
         }
     }
@@ -69,8 +65,6 @@ final class DictationEngine: ObservableObject {
 
     @AppStorage(onboardingCompleteDefaultsKey) var onboardingComplete = false
     @AppStorage(transcriptionProfileDefaultsKey) var transcriptionProfile = TranscriptionProfile.balanced.rawValue
-    @AppStorage(cleanupEnabledDefaultsKey) var cleanupEnabled = true
-    @AppStorage(cleanupPromptDefaultsKey) var cleanupPrompt = TextProcessor.defaultPrompt
     @AppStorage(hotkeyChoiceDefaultsKey) var hotkeyChoice = HotkeyManager.Hotkey.ctrl.rawValue
     @AppStorage(inputMonitoringPromptedDefaultsKey) private var hasPromptedInputMonitoring = false
 
@@ -78,7 +72,6 @@ final class DictationEngine: ObservableObject {
     private var transcriber: Transcriber?
     private let hotkeyManager = HotkeyManager()
     let modelManager = ModelManager()
-    let cleanupModelManager = CleanupModelManager()
     private var didStart = false
     private var recordingTargetAppPID: pid_t?
     private var recordingTargetBundleID: String?
@@ -228,13 +221,10 @@ final class DictationEngine: ObservableObject {
         onboardingComplete = false
         UserDefaults.standard.set(0, forKey: onboardingStepDefaultsKey)
         transcriptionProfile = TranscriptionProfile.balanced.rawValue
-        cleanupEnabled = true
-        cleanupPrompt = TextProcessor.defaultPrompt
         hotkeyChoice = HotkeyManager.Hotkey.ctrl.rawValue
         hasPromptedInputMonitoring = false
 
         modelManager.handleFreshOnboardingReset()
-        cleanupModelManager.handleFreshOnboardingReset()
         refreshPermissionSnapshot()
     }
 
@@ -311,19 +301,7 @@ final class DictationEngine: ObservableObject {
             lastRawText = raw
             debugLogSensitive("[holdtotalk] Raw", text: raw)
 
-            var finalText = raw
-            if cleanupEnabled && TextProcessor.isAvailable {
-                state = .cleaning
-                do {
-                    let cleaned = try await TextProcessor(prompt: cleanupPrompt).cleanup(raw)
-                    if cleaned != raw {
-                        debugLogSensitive("[holdtotalk] Cleaned", text: cleaned)
-                        finalText = cleaned
-                    }
-                } catch {
-                    debugLog("[holdtotalk] Cleanup failed, using raw text: \(error)")
-                }
-            }
+            let finalText = raw
             lastCleanText = finalText
 
             reactivateRecordingTargetAppIfNeeded()

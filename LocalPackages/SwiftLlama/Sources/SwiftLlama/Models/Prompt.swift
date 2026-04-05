@@ -101,15 +101,6 @@ public struct Prompt {
     }
 
     private func encodeGemmaPrompt() -> String {
-        """
-        <start_of_turn>system
-        \(systemPrompt)
-        <end_of_turn>
-        \(history.suffix(Configuration.historySize).map { $0.gemmaPrompt }.joined())
-        <start_of_turn>user
-        \(userMessage)
-        <end_of_turn>
-        <start_of_turn>model
-        """
+"<start_of_turn>system\n\(systemPrompt)<end_of_turn>\n\(history.suffix(Configuration.historySize).map { $0.gemmaPrompt }.joined())<start_of_turn>user\n\(userMessage)<end_of_turn>\n<start_of_turn>model\n"
     }
 }

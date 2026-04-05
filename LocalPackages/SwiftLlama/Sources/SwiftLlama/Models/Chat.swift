@@ -52,14 +52,7 @@ extension Chat {
     }
 
     var gemmaPrompt: String {
-        """
-        <start_of_turn>user
-        \(user)
-        <end_of_turn>
-        <start_of_turn>model
-        \(bot)
-        <end_of_turn>
-        """
+"<start_of_turn>user\n\(user)<end_of_turn>\n<start_of_turn>model\n\(bot)<end_of_turn>\n"
     }
 
 }

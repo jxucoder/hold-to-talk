@@ -5,11 +5,9 @@ import AVFoundation
 struct SettingsView: View {
     @ObservedObject var engine: DictationEngine
     @ObservedObject var modelManager: ModelManager
-    @ObservedObject var cleanupModelManager: CleanupModelManager
     var updater: (any AppUpdateDriver)? = nil
     @Environment(\.dismiss) private var dismiss
 
-    @State private var showCleanupPrompt = false
     @State private var launchAtLogin: Bool = (SMAppService.mainApp.status == .enabled)
     @State private var isRunningEnvironmentFix = false
     @State private var pendingFixInputMonitoring = false
@@ -42,7 +40,7 @@ struct SettingsView: View {
                     .frame(width: 64, height: 64)
                     Text("Hold to Talk")
                         .font(.title2.bold())
-                    Text("Free and open-source. Audio stays on your Mac. Fast on-device speech models, with optional on-device Gemma cleanup.")
+                    Text("Free and open-source. Audio stays on your Mac. Fast on-device speech recognition.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -109,16 +107,6 @@ struct SettingsView: View {
                             ? "Downloading \(SpeechModelInfo.displayName)..."
                             : "\(SpeechModelInfo.displayName) not downloaded")
                 )
-                statusRow(
-                    title: "Cleanup model",
-                    ok: cleanupModelManager.isDownloaded,
-                    details: cleanupModelManager.isDownloaded
-                        ? "\(CleanupModelInfo.displayName) ready"
-                        : (cleanupModelManager.isDownloading
-                            ? "Downloading \(CleanupModelInfo.displayName)..."
-                            : "\(CleanupModelInfo.displayName) not downloaded")
-                )
-
                 Toggle("Store diagnostic logs", isOn: $diagnosticLoggingEnabled)
                     .onChange(of: diagnosticLoggingEnabled) { _, enabled in
                         if enabled {
@@ -168,41 +156,6 @@ struct SettingsView: View {
                 ModelTrustView()
             }
 
-            Section("Cleanup") {
-                Toggle("Enable cleanup", isOn: $engine.cleanupEnabled)
-
-                cleanupModelStatusView
-
-                CleanupModelTrustView()
-
-                DisclosureGroup(isExpanded: $showCleanupPrompt) {
-                    TextEditor(text: $engine.cleanupPrompt)
-                        .font(.system(.caption, design: .monospaced))
-                        .frame(minHeight: 100)
-                        .scrollContentBackground(.hidden)
-                        .padding(4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(.background)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .strokeBorder(.quaternary)
-                                )
-                        )
-
-                    if engine.cleanupPrompt != TextProcessor.defaultPrompt {
-                        Button("Reset to default") {
-                            engine.cleanupPrompt = TextProcessor.defaultPrompt
-                        }
-                        .controlSize(.small)
-                    }
-                } label: {
-                    Text("Cleanup prompt")
-                }
-                .contentShape(Rectangle())
-                .onTapGesture { showCleanupPrompt.toggle() }
-            }
-
             Section("Hotkey") {
                 Picker("Hold to record", selection: $engine.hotkeyChoice) {
                     ForEach(hotkeys, id: \.rawValue) { key in
@@ -220,7 +173,6 @@ struct SettingsView: View {
         .padding()
         .onAppear {
             modelManager.refreshDownloadStatus()
-            cleanupModelManager.refreshDownloadStatus()
             refreshPermissionSnapshot()
             if TranscriptionProfile(rawValue: engine.transcriptionProfile) == nil {
                 engine.transcriptionProfile = TranscriptionProfile.balanced.rawValue
@@ -284,67 +236,6 @@ struct SettingsView: View {
             }
 
             if let error = modelManager.downloadError {
-                Text(error)
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    // MARK: - Cleanup Model Status
-
-    @ViewBuilder
-    private var cleanupModelStatusView: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(CleanupModelInfo.displayName)
-                        .fontWeight(.semibold)
-                    Text(cleanupModelManager.isDownloaded
-                         ? (cleanupModelManager.diskSize() ?? CleanupModelInfo.sizeLabel)
-                         : CleanupModelInfo.sizeLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                if cleanupModelManager.isDownloaded {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Button(role: .destructive) {
-                            cleanupModelManager.deleteModel()
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.borderless)
-                    }
-                } else if cleanupModelManager.isDownloading {
-                    Button("Cancel") {
-                        cleanupModelManager.cancelDownload()
-                    }
-                    .controlSize(.small)
-                } else {
-                    Button("Download") {
-                        cleanupModelManager.download()
-                    }
-                    .controlSize(.small)
-                }
-            }
-
-            if cleanupModelManager.isDownloading {
-                ProgressView(value: cleanupModelManager.downloadProgress)
-                    .progressViewStyle(.linear)
-                Text("\(Int(cleanupModelManager.downloadProgress * 100))%")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let error = cleanupModelManager.downloadError {
                 Text(error)
                     .font(.caption2)
                     .foregroundStyle(.red)

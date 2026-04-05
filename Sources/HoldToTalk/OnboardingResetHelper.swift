@@ -7,8 +7,6 @@ let onboardingNeedsResumeAfterAppMoveDefaultsKey = "onboardingNeedsResumeAfterAp
 let dismissedInstallPromptDefaultsKey = "dismissedInstallPrompt"
 let whisperModelDefaultsKey = "whisperModel"
 let transcriptionProfileDefaultsKey = "transcriptionProfile"
-let cleanupEnabledDefaultsKey = "cleanupEnabled"
-let cleanupPromptDefaultsKey = "cleanupPrompt"
 let hotkeyChoiceDefaultsKey = "hotkeyChoice"
 let diagnosticLoggingEnabledDefaultsKey = "diagnosticLoggingEnabled"
 
