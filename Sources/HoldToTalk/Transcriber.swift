@@ -42,8 +42,16 @@ actor Transcriber {
     private var recognizer: SherpaOnnxOfflineRecognizer?
     private var loadTask: Task<SherpaOnnxOfflineRecognizer, Error>?
     private var hasCompletedDecodeWarmup = false
+    private var currentHotwords: String = ""
 
-    func loadModel(numThreads: Int = 4) async throws {
+    func loadModel(numThreads: Int = 4, hotwords: String = "") async throws {
+        // If hotwords changed, recreate the recognizer
+        if recognizer != nil && hotwords != currentHotwords {
+            print("[transcriber] Hotwords changed, recreating recognizer...")
+            recognizer = nil
+            hasCompletedDecodeWarmup = false
+        }
+
         guard recognizer == nil else { return }
 
         if let loadTask {
@@ -51,9 +59,10 @@ actor Transcriber {
             return
         }
 
+        currentHotwords = hotwords
         print("[transcriber] Loading Parakeet TDT 0.6B...")
-        let task = Task {
-            try createRecognizer(numThreads: numThreads)
+        let task = Task { [currentHotwords] in
+            try createRecognizer(numThreads: numThreads, hotwords: currentHotwords)
         }
         loadTask = task
         defer { loadTask = nil }
@@ -62,12 +71,12 @@ actor Transcriber {
         print("[transcriber] Ready.")
     }
 
-    func prepareForFirstTranscription(profile: TranscriptionProfile = .balanced) async throws {
-        if hasCompletedDecodeWarmup {
+    func prepareForFirstTranscription(profile: TranscriptionProfile = .balanced, hotwords: String = "") async throws {
+        if hasCompletedDecodeWarmup && hotwords == currentHotwords {
             return
         }
 
-        try await loadModel(numThreads: profile.numThreads)
+        try await loadModel(numThreads: profile.numThreads, hotwords: hotwords)
         guard let recognizer, !hasCompletedDecodeWarmup else { return }
 
         print("[transcriber] Running decode warm-up...")
@@ -78,9 +87,9 @@ actor Transcriber {
     }
 
     /// Transcribe 16 kHz mono float audio to text.
-    func transcribe(_ audio: [Float], profile: TranscriptionProfile = .balanced) async throws -> String {
-        if recognizer == nil {
-            try await loadModel(numThreads: profile.numThreads)
+    func transcribe(_ audio: [Float], profile: TranscriptionProfile = .balanced, hotwords: String = "") async throws -> String {
+        if recognizer == nil || hotwords != currentHotwords {
+            try await loadModel(numThreads: profile.numThreads, hotwords: hotwords)
         }
         guard let recognizer, !audio.isEmpty else { return "" }
 
@@ -484,7 +493,7 @@ actor Transcriber {
 
     // MARK: - Private
 
-    private func createRecognizer(numThreads: Int) throws -> SherpaOnnxOfflineRecognizer {
+    private func createRecognizer(numThreads: Int, hotwords: String = "") throws -> SherpaOnnxOfflineRecognizer {
         let modelDir = ModelManager.modelBase
             .appendingPathComponent(SpeechModelInfo.modelDirectoryName).path
 
@@ -504,9 +513,31 @@ actor Transcriber {
             sampleRate: 16000,
             featureDim: 128
         )
+
+        let trimmedHotwords = hotwords.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hotwordsFilePath: String
+        let decodingMethod: String
+
+        if !trimmedHotwords.isEmpty {
+            let hotwordsURL = ModelManager.modelBase.appendingPathComponent("hotwords.txt")
+            try trimmedHotwords.write(to: hotwordsURL, atomically: true, encoding: .utf8)
+            hotwordsFilePath = hotwordsURL.path
+            decodingMethod = "modified_beam_search"
+            let entryCount = trimmedHotwords.components(separatedBy: .newlines)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
+            print("[transcriber] Hotwords enabled (\(entryCount) entries), using modified_beam_search")
+        } else {
+            hotwordsFilePath = ""
+            decodingMethod = "greedy_search"
+            print("[transcriber] No hotwords, using greedy_search")
+        }
+
         var config = sherpaOnnxOfflineRecognizerConfig(
             featConfig: featConfig,
             modelConfig: modelConfig,
+            decodingMethod: decodingMethod,
+            hotwordsFile: hotwordsFilePath,
+            hotwordsScore: 1.5,
             blankPenalty: 2.0
         )
         guard let recognizer = SherpaOnnxOfflineRecognizer(config: &config) else {

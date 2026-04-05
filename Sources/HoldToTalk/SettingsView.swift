@@ -149,6 +149,37 @@ struct SettingsView: View {
                 Text(activeTranscriptionProfile.summary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                DisclosureGroup("Hotwords") {
+                    TextEditor(text: $engine.hotwords)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(minHeight: 60, maxHeight: 120)
+                        .scrollContentBackground(.hidden)
+                        .padding(4)
+                        .background(.background)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(.separator)
+                        )
+
+                    Text("Boost recognition of specific words or phrases. One per line. Uses modified beam search (slightly slower).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        Spacer()
+                        if !engine.hotwords.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Button("Clear") {
+                                engine.hotwords = ""
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                }
+                .onChange(of: engine.hotwords) {
+                    engine.reloadTranscriber()
+                }
             }
 
             Section("Text Cleanup") {

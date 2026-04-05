@@ -4,6 +4,27 @@
     <title>Hold to Talk</title>
     <link>https://jxucoder.github.io/holdtotalk/appcast.xml</link>
     <item>
+      <title>Version 2.0.1</title>
+      <sparkle:version>2.0.1</sparkle:version>
+      <sparkle:shortVersionString>2.0.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h2>What's New in 2.0.1</h2>
+        <ul>
+          <li><strong>Hotwords:</strong> Add a custom word list in Settings to boost recognition of names, jargon, and acronyms. Uses sherpa-onnx modified beam search when active; greedy search resumes when the list is empty.</li>
+        </ul>
+        <h2>2.0.0 Highlights</h2>
+        <ul>
+          <li><strong>New speech engine:</strong> Replaced WhisperKit/CoreML with sherpa-onnx + NVIDIA Parakeet TDT 0.6B (int8). Lower word error rate (~6% vs ~8%) and 2-5x faster inference.</li>
+          <li><strong>Apple-native redesign:</strong> Overhauled visuals to match macOS design language: system fills, separators, accent-colored waveform, standardized spacing and radii.</li>
+          <li><strong>Apple Intelligence text cleanup:</strong> Optional on-device grammar and filler-word removal via Foundation Models (macOS 26+).</li>
+          <li><strong>Silero VAD segmentation:</strong> Voice activity detection strips silence and caps segments at 15 s to prevent transducer looping.</li>
+          <li><strong>Electron app fix:</strong> Clipboard-paste insertion for VS Code, Slack, Chrome, and other Electron/browser apps (no more doubled text).</li>
+        </ul>
+      ]]></description>
+      <enclosure url="https://github.com/jxucoder/hold-to-talk/releases/download/v2.0.1/HoldToTalk-v2.0.1.zip" length="0" type="application/octet-stream" sparkle:edSignature="" />
+    </item>
+    <item>
       <title>Version 2.0.0</title>
       <pubDate>Sun, 05 Apr 2026 07:08:52 +0000</pubDate>
       <sparkle:version>2.0.0</sparkle:version>

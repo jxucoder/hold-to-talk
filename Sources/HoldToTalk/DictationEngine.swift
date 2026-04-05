@@ -69,6 +69,7 @@ final class DictationEngine: ObservableObject {
     @AppStorage(inputMonitoringPromptedDefaultsKey) private var hasPromptedInputMonitoring = false
     @AppStorage(textCleanupEnabledDefaultsKey) var textCleanupEnabled = TextCleanup.checkAvailability() == .available
     @AppStorage(textCleanupPromptDefaultsKey) var textCleanupPrompt = TextCleanup.defaultPrompt
+    @AppStorage(hotwordsDefaultsKey) var hotwords: String = ""
 
     private let recorder = AudioRecorder()
     private var transcriber: Transcriber?
@@ -120,9 +121,10 @@ final class DictationEngine: ObservableObject {
         let activeTranscriber = ensureActiveTranscriber()
         let profile = resolvedTranscriptionProfile
 
+        let currentHotwords = hotwords
         transcriberWarmupTask = Task { [weak self] in
             do {
-                try await activeTranscriber.prepareForFirstTranscription(profile: profile)
+                try await activeTranscriber.prepareForFirstTranscription(profile: profile, hotwords: currentHotwords)
             } catch {
                 debugLog("[holdtotalk] Model pre-warm failed: \(error)")
                 guard let self else { return }
@@ -227,6 +229,7 @@ final class DictationEngine: ObservableObject {
         hasPromptedInputMonitoring = false
         textCleanupEnabled = TextCleanup.checkAvailability() == .available
         textCleanupPrompt = TextCleanup.defaultPrompt
+        hotwords = ""
 
         modelManager.handleFreshOnboardingReset()
         refreshPermissionSnapshot()
@@ -234,6 +237,12 @@ final class DictationEngine: ObservableObject {
 
     func reloadHotkey() {
         hotkeyManager.update(hotkey: resolvedHotkey)
+    }
+
+    /// Invalidates the current transcriber so the next dictation recreates it with updated hotwords.
+    func reloadTranscriber() {
+        transcriber = nil
+        completedWarmup = false
     }
 
     // MARK: - Pipeline
@@ -291,7 +300,8 @@ final class DictationEngine: ObservableObject {
         do {
             let transcribeStart = Date()
             let profile = resolvedTranscriptionProfile
-            let raw = try await activeTranscriber.transcribe(audio, profile: profile)
+            let currentHotwords = hotwords
+            let raw = try await activeTranscriber.transcribe(audio, profile: profile, hotwords: currentHotwords)
             let transcribeTime = Date().timeIntervalSince(transcribeStart)
             debugLog("[holdtotalk] Transcribed \(String(format: "%.1f", duration))s audio in \(String(format: "%.2f", transcribeTime))s [\(profile.rawValue)]")
             guard !raw.isEmpty else {

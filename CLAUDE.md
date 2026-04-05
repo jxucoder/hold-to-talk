@@ -25,8 +25,11 @@ make build                         # Release build + assemble .app bundle
 make run                           # Debug build + assemble .app + open
 make install                       # Release build + install to /Applications
 make release                       # Sign, notarize, package zip + dmg
-make test-reset                    # Kill app, remove installs, delete all data, reset permissions
-make permissions-reset             # Reset TCC permissions only
+make test-reset                    # Kill app, remove installs, delete all data, reset permissions (needs sudo for TCC)
+make permissions-reset             # Reset TCC permissions only (needs sudo)
+tccutil reset Microphone com.holdtotalk.app    # Reset single TCC permission without sudo
+tccutil reset Accessibility com.holdtotalk.app
+tccutil reset ListenEvent com.holdtotalk.app
 ```
 
 ### Debug flags (DEBUG builds only)
@@ -95,7 +98,7 @@ Orchestrated by `DictationEngine` with states: `idle` -> `recording` -> `transcr
 
 ## Troubleshooting
 
-- **Permissions not auto-detecting**: `CGPreflightPostEventAccess()` caches per-process. Ad-hoc builds get new code identity each rebuild. Use "Skip Permissions (Debug)" button in debug builds, or relaunch for release builds with stable signing.
+- **Permissions not auto-detecting**: `CGPreflightPostEventAccess()` caches per-process. Ad-hoc builds get new code identity each rebuild. Use "Skip Permissions (Debug)" button in debug builds, or relaunch for release builds with stable signing. To manually reset permissions without sudo, run `tccutil reset <service> com.holdtotalk.app` (services: `Microphone`, `Accessibility`, `ListenEvent`).
 - **Wrong app instance launches**: macOS may open `/Applications/Hold To Talk.app` instead of debug build. Run `make test-reset` first.
 - **Sparkle framework not found**: Binary needs `@loader_path/../Frameworks` rpath. `make build`/`make run` handle this; manual `swift build` does not assemble the .app bundle.
 - **Model download fails**: Recognizer init returns nil and shows error. Delete model via Settings and re-download.
