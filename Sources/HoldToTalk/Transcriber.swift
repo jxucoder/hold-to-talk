@@ -126,22 +126,20 @@ actor Transcriber {
     static func extractSpeechSegments(_ audio: [Float], sampleRate: Int = 16000) -> [[Float]] {
         guard !audio.isEmpty else { return [] }
 
-        // Try Bundle.module first, then fall back to known locations
+        // Try the app's Contents/Resources path first (avoids Bundle.module fatalError in .app bundles),
+        // then fall back to Bundle.module for debug/SwiftPM builds.
         let vadModelPath: String
-        if let bundlePath = Bundle.module.url(forResource: "silero_vad", withExtension: "onnx")?.path {
+        let appResourcePath = Bundle.main.bundlePath + "/Contents/Resources/HoldToTalk_HoldToTalk.bundle/silero_vad.onnx"
+        if FileManager.default.fileExists(atPath: appResourcePath) {
+            vadModelPath = appResourcePath
+            NSLog("[holdtotalk] VAD model found via app Resources: %@", appResourcePath)
+        } else if let bundlePath = Bundle.module.url(forResource: "silero_vad", withExtension: "onnx")?.path {
             vadModelPath = bundlePath
             NSLog("[holdtotalk] VAD model found via Bundle.module: %@", bundlePath)
         } else {
-            // Bundle.module failed — try the app's Contents/Resources path
-            let appResourcePath = Bundle.main.bundlePath + "/Contents/Resources/HoldToTalk_HoldToTalk.bundle/silero_vad.onnx"
-            if FileManager.default.fileExists(atPath: appResourcePath) {
-                vadModelPath = appResourcePath
-                NSLog("[holdtotalk] VAD model found via app Resources: %@", appResourcePath)
-            } else {
-                NSLog("[holdtotalk] WARNING: silero_vad.onnx not found. Bundle.module base: %@, app path tried: %@",
-                      Bundle.module.bundlePath, appResourcePath)
-                return splitAtSilenceGaps(audio, sampleRate: sampleRate)
-            }
+            NSLog("[holdtotalk] WARNING: silero_vad.onnx not found. App path tried: %@",
+                  appResourcePath)
+            return splitAtSilenceGaps(audio, sampleRate: sampleRate)
         }
 
         let sileroConfig = sherpaOnnxSileroVadModelConfig(
