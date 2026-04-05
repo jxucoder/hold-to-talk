@@ -134,10 +134,6 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .padding(.horizontal, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.accentColor.opacity(0.08))
-            )
 
             VStack(alignment: .leading, spacing: 8) {
                 featureRow("chevron.left.forwardslash.chevron.right", "Free and open-source")
@@ -176,10 +172,10 @@ struct OnboardingView: View {
                     }
                 }
                 .frame(maxWidth: 360, alignment: .leading)
-                .padding(12)
+                .padding(16)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.orange.opacity(0.08))
+                        .fill(.quaternary)
                 )
 
                 if let installErrorMessage {
@@ -220,10 +216,10 @@ struct OnboardingView: View {
     private func featureRow(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 18)
             Text(text)
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
     }
@@ -250,10 +246,10 @@ struct OnboardingView: View {
             .foregroundStyle(systemCompatibility.isSupported ? .green : .red)
         }
         .frame(maxWidth: 360, alignment: .leading)
-        .padding(12)
+        .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill((systemCompatibility.isSupported ? Color.green : Color.red).opacity(0.08))
+                .fill(.quaternary)
         )
     }
 
@@ -334,10 +330,10 @@ struct OnboardingView: View {
                 ProgressView(value: Double(permissionsGrantedCount), total: 3)
                     .progressViewStyle(.linear)
             }
-            .padding(12)
+            .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.secondary.opacity(0.08))
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.quaternary)
             )
             .frame(maxWidth: 380)
 
@@ -366,8 +362,8 @@ struct OnboardingView: View {
                 .frame(maxWidth: 380)
                 .padding(18)
                 .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(Color.green.opacity(0.08))
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.quaternary)
                 )
             }
 
@@ -502,8 +498,8 @@ struct OnboardingView: View {
         .frame(maxWidth: 380, alignment: .leading)
         .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color.secondary.opacity(0.08))
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.quaternary)
         )
     }
 
@@ -522,10 +518,10 @@ struct OnboardingView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(12)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.green.opacity(0.06))
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.quaternary)
         )
     }
 

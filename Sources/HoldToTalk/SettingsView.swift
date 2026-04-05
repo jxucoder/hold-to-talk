@@ -186,7 +186,7 @@ struct SettingsView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                         .overlay(
                             RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.secondary.opacity(0.2))
+                                .stroke(.separator)
                         )
 
                     HStack {
@@ -219,7 +219,7 @@ struct SettingsView: View {
 
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: 720)
+        .frame(width: 440, height: 720)
         .padding()
         .onAppear {
             modelManager.refreshDownloadStatus()

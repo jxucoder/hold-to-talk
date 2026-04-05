@@ -24,8 +24,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          lfs: true
+
+      - name: Setup sherpa-onnx
+        run: bash scripts/setup-sherpa-onnx.sh
 
       - name: Test
         run: swift test

@@ -192,7 +192,7 @@ private struct HUDContentView: View {
         )
         .overlay(
             Capsule()
-                .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
+                .strokeBorder(.separator, lineWidth: 0.5)
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: 0.2), value: model.state)
@@ -204,29 +204,26 @@ private struct RecordingWaveView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 4) {
-            ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
+            ForEach(Array(levels.enumerated()), id: \.offset) { index, level in
                 Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.green.opacity(0.9),
-                                Color.accentColor.opacity(0.95),
-                            ],
-                            startPoint: .bottom,
-                            endPoint: .top
-                        )
-                    )
-                    .frame(width: 3, height: barHeight(level: level))
+                    .fill(Color.accentColor)
+                    .frame(width: 3, height: barHeight(level: level, index: index))
             }
         }
         .frame(maxHeight: .infinity, alignment: .center)
-        .animation(.spring(response: 0.18, dampingFraction: 0.74), value: levels)
+        .animation(.spring(response: 0.15, dampingFraction: 0.68), value: levels)
     }
 
-    private func barHeight(level: CGFloat) -> CGFloat {
-        let minimumHeight: CGFloat = 6
-        let maximumHeight: CGFloat = 22
-        let visibleLevel = max(level, 0.06)
-        return minimumHeight + ((maximumHeight - minimumHeight) * visibleLevel)
+    private func barHeight(level: CGFloat, index: Int) -> CGFloat {
+        let minimumHeight: CGFloat = 4
+        let maximumHeight: CGFloat = 24
+        // Amplify low levels so quiet speech still shows visible movement
+        let amplified = pow(max(level, 0), 0.5)
+        // Stagger neighboring bars slightly for a more organic wave shape
+        let center = Double(levels.count) / 2.0
+        let distance = abs(Double(index) - center) / center
+        let taper = 1.0 - 0.25 * distance
+        let visibleLevel = max(amplified * taper, 0.08)
+        return minimumHeight + (maximumHeight - minimumHeight) * min(visibleLevel, 1.0)
     }
 }

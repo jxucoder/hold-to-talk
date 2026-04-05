@@ -1,4 +1,4 @@
-.PHONY: build install verify package package-zip package-dmg package-permission-test-dmg \
+.PHONY: setup build install verify package package-zip package-dmg package-permission-test-dmg \
  notarize notarize-app notarize-dmg release permissions-reset reset-fresh-test test-reset uninstall run clean
 
 APP_NAME := HoldToTalk
@@ -26,7 +26,10 @@ SPARKLE_FRAMEWORK := $(shell swift build -c release --show-bin-path)/Sparkle.fra
 APP_ENTITLEMENTS := $(if $(filter -,$(SIGNING_IDENTITY)),Resources/HoldToTalk.dev.entitlements,Resources/HoldToTalk.direct.entitlements)
 endif
 
-build:
+setup:
+	@bash scripts/setup-sherpa-onnx.sh
+
+build: setup
 	APP_STORE="$(APP_STORE)" swift build -c release
 	@rm -rf "$(APP_BUNDLE)"
 	@mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
@@ -143,7 +146,7 @@ test-reset:
 uninstall:
 	@APP_USER="$(APP_USER)" bash scripts/reset-fresh-test.sh --yes
 
-run:
+run: setup
 	swift build
 	@rm -rf "$(APP_BUNDLE)"
 	@mkdir -p "$(APP_BUNDLE)/Contents/MacOS"

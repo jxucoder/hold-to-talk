@@ -29,9 +29,9 @@ final class DictationEngine: ObservableObject {
 
         var color: Color {
             switch self {
-            case .idle:         .green
+            case .idle:         .secondary
             case .recording:    .red
-            case .transcribing: .orange
+            case .transcribing: .accentColor
             }
         }
     }

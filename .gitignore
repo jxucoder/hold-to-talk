@@ -18,6 +18,9 @@ Package.resolved
 *.app/
 dist/
 
+# Downloaded at build time via scripts/setup-sherpa-onnx.sh
+Frameworks/
+
 # Secrets
 .env
 

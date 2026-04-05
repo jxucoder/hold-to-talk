@@ -42,11 +42,11 @@ struct ModelTrustView: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.secondary.opacity(0.08))
+                .fill(.quaternary)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color.secondary.opacity(0.12))
+                .strokeBorder(.separator)
         )
     }
 
@@ -55,6 +55,6 @@ struct ModelTrustView: View {
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.accentColor.opacity(0.10), in: Capsule())
+            .background(.quaternary, in: Capsule())
     }
 }

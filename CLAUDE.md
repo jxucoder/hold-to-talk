@@ -7,7 +7,7 @@ Hold To Talk is a macOS menu bar app for hold-to-talk dictation. Hold a hotkey, 
 ## Tech Stack
 
 - **Swift 6** (language mode v5), **SwiftUI**, **SwiftPM** (no Xcode project)
-- **sherpa-onnx** (Next-gen Kaldi) for speech recognition, vendored as xcframework in `Frameworks/`
+- **sherpa-onnx** (Next-gen Kaldi) for speech recognition, downloaded at build time into `Frameworks/`
 - **NVIDIA Parakeet TDT 0.6B** (int8 quantized, ~640MB) downloaded at runtime
 - **Silero VAD** for voice activity detection, bundled as `Resources/silero_vad.onnx`
 - **Apple Intelligence** (Foundation Models, macOS 26+) for optional text cleanup
@@ -16,7 +16,8 @@ Hold To Talk is a macOS menu bar app for hold-to-talk dictation. Hold a hotkey, 
 ## Commands
 
 ```bash
-swift build                        # Debug build
+make setup                         # Download sherpa-onnx xcframework (auto-runs before build/run)
+swift build                        # Debug build (requires setup first)
 swift build -c release             # Release build
 swift test                         # Run all tests
 
