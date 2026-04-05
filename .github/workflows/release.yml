@@ -16,6 +16,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Resolve release metadata
         run: |
