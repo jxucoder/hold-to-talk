@@ -2,9 +2,9 @@
   <img src="Resources/logo.png" width="128" alt="Hold to Talk logo">
 </p>
 
-# Hold to Talk
+<h1 align="center">Hold to Talk</h1>
 
-Free, open-source voice dictation for macOS. Hold a key, speak, release -- your words appear wherever your cursor is. Everything runs locally on your Mac.
+<p align="center">Free, open-source voice dictation for macOS. Hold a key, speak, release -- your words appear wherever your cursor is. Everything runs locally on your Mac.</p>
 
 <p align="center">
   <a href="https://jxucoder.github.io/hold-to-talk/demo.mp4">
