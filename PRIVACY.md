@@ -1,101 +1,105 @@
 # Privacy Policy
 
-**Effective date:** March 8, 2026
+**Effective date:** April 5, 2026
 
 This privacy policy covers the Hold to Talk macOS app and the Hold to Talk website at `holdtotalk.ai`.
 
 ## Summary
 
-- The **app** is designed to keep dictation data on your Mac.
-- The **website** uses Google Analytics to understand traffic and page usage.
+- The **app** keeps all dictation data on your Mac. Audio and transcriptions are never sent to Hold to Talk servers.
+- The **website** uses Google Analytics to understand traffic.
 - Hold to Talk does **not** sell personal data or use advertising trackers inside the app.
 
 ## Hold to Talk app
 
-### What the app does with your data
+### How speech recognition works
 
-Hold to Talk records microphone audio only while you hold the dictation hotkey. Speech recognition runs locally on your Mac using on-device models. Audio and transcribed text are not sent to Hold to Talk servers.
+Hold to Talk uses two open-source projects for on-device speech recognition:
+
+- **[NVIDIA Parakeet TDT 0.6B](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2)** -- the speech model. Parakeet is an automatic speech recognition model developed by NVIDIA and released under the Apache 2.0 license. Hold to Talk downloads the int8-quantized version (~640 MB) on first launch. Once downloaded, the model runs entirely on your Mac with no network calls.
+
+- **[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)** -- the inference runtime. sherpa-onnx is developed by the [Next-gen Kaldi](https://github.com/k2-fsa) team (the research group behind the Kaldi speech recognition toolkit widely used in academia and industry). It runs ONNX models locally without requiring a GPU or cloud service. sherpa-onnx is open-source under the Apache 2.0 license.
+
+Both projects are published by established research teams, hosted on GitHub and Hugging Face, and are independently auditable.
 
 ### Audio
 
-- Microphone audio is captured only during an active dictation session.
+- Microphone audio is captured only while you hold the dictation hotkey.
 - Audio is processed locally in memory for transcription.
-- Audio is not uploaded to Hold to Talk.
-- Audio is not stored as recordings by Hold to Talk.
+- Audio is not uploaded anywhere.
+- Audio is not stored as recordings.
 
 ### Transcriptions
 
 - Transcribed text is inserted into the app you are using.
 - Hold to Talk does not keep a cloud transcription history.
-- If optional Apple Intelligence cleanup is enabled, cleanup is performed by on-device system features provided by macOS.
-- If you explicitly enable local diagnostic logging for troubleshooting, transcript text is redacted in those logs by default.
+- If optional Apple Intelligence cleanup is enabled (macOS 26+), cleanup runs on-device via macOS system features.
+- If you enable local diagnostic logging, transcript text is redacted in those logs by default.
 
 ### Local storage
 
-Hold to Talk stores app data on your Mac, including:
+Hold to Talk stores the following on your Mac:
 
-- preferences such as hotkey choice, selected model, and cleanup settings
-- downloaded speech models required for on-device transcription
-- temporary app state needed for onboarding and operation
-- optional local diagnostic logs, only if you enable them for troubleshooting
+- Preferences (hotkey, transcription profile, cleanup settings)
+- The downloaded Parakeet TDT speech model
+- Temporary app state for onboarding and operation
+- Optional local diagnostic logs, only if you enable them
 
-Hold to Talk does not intentionally store audio recordings or a server-side transcript history.
+Hold to Talk does not store audio recordings or a server-side transcript history.
 
-### Network activity from the app
+### Network activity
 
-The app may make limited network requests for product delivery features:
+The app makes limited network requests:
 
-- downloading speech models from supported model hosts such as Hugging Face
-- checking for direct-release app updates through Sparkle when using the non-App-Store version
+| Request | Destination | Purpose |
+|---|---|---|
+| Model download | `github.com/k2-fsa/sherpa-onnx/releases` | One-time download of the Parakeet TDT speech model |
+| Update check | Sparkle update feed | Checking for app updates (direct-download builds only, not App Store) |
 
-These requests are used to download app or model files. Hold to Talk does not send your microphone audio or transcription text as part of those requests.
+These requests download app or model files. Hold to Talk does not send audio or transcription text in any network request.
 
 ### App analytics and tracking
 
-Hold to Talk does not include in-app advertising, third-party analytics SDKs, or app telemetry that tracks what you dictate.
+Hold to Talk does not include in-app advertising, third-party analytics SDKs, or telemetry that tracks what you dictate.
 
 ## Website
 
 ### Website analytics
 
-The Hold to Talk website uses **Google Analytics** to measure site traffic and usage. When you visit the website, Google Analytics may collect information such as:
+The Hold to Talk website uses **Google Analytics** to measure site traffic. When you visit the website, Google Analytics may collect:
 
-- pages viewed
-- approximate geographic region
-- browser and device information
-- referral source
-- basic interaction and session data
+- Pages viewed
+- Approximate geographic region
+- Browser and device information
+- Referral source
 
-This information helps understand website usage and improve the site. Website analytics do not include your dictation audio or transcription text from the app.
+Website analytics do not include dictation audio or transcription text from the app.
 
-### Website hosting and downloads
+### Website hosting
 
-The website and release assets may be served through third-party infrastructure such as GitHub Pages, GitHub Releases, and other download providers. Those services may receive technical information such as your IP address, user agent, and request logs as part of normal web delivery.
+The website and release assets are served through GitHub Pages and GitHub Releases. Those services may receive technical information (IP address, user agent) as part of normal web delivery.
 
 ## Permissions
 
-The app may request these macOS permissions:
+The app requests these macOS permissions:
 
-- **Microphone** for voice input
-- **Accessibility** for text insertion and interaction support
-- **Input Monitoring** for reliable global hotkey detection
+- **Microphone** -- recording audio for transcription
+- **Accessibility** (Keyboard Access) -- inserting transcribed text into apps
+- **Input Monitoring** -- detecting the global hotkey in any app
 
 These permissions are managed by macOS and can be revoked at any time in System Settings.
 
 ## Third parties
 
-Depending on how you use Hold to Talk, third-party services may be involved:
-
-- **Google Analytics** for website traffic analytics
-- **GitHub** for website hosting, source code, and release downloads
-- **Hugging Face** for speech model downloads
-- **Sparkle** for direct-release update delivery
-
-Their handling of technical request data is governed by their own policies.
+| Service | Role | Their privacy policy |
+|---|---|---|
+| GitHub | Source code, release hosting, model download | [github.com/site/privacy](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) |
+| Google Analytics | Website traffic analytics | [policies.google.com/privacy](https://policies.google.com/privacy) |
+| Sparkle | Direct-download update delivery | [sparkle-project.org](https://sparkle-project.org) |
 
 ## Children
 
-Hold to Talk is not directed to children, and Hold to Talk does not knowingly collect personal information from children through the app.
+Hold to Talk is not directed to children and does not knowingly collect personal information from children.
 
 ## Changes to this policy
 
