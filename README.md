@@ -98,6 +98,24 @@ SettingsView        SwiftUI settings form
 
 Dependencies: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (speech recognition), [Sparkle](https://sparkle-project.org) (auto-updates, excluded from App Store builds).
 
+### Why Parakeet TDT + sherpa-onnx
+
+**[NVIDIA Parakeet TDT 0.6B](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2)** uses a Token-and-Duration Transducer architecture instead of the encoder-decoder attention approach used by Whisper. Key advantages for real-time dictation:
+
+- **Linear latency** -- TDT predicts tokens frame-by-frame without an autoregressive decoding loop, so transcription time scales linearly with audio length rather than quadratically.
+- **Silence-robust** -- emits blanks for non-speech frames instead of hallucinating text, a common problem with Whisper on silence or noise.
+- **Compact** -- int8-quantized to ~150 MB on disk (vs ~1.5 GB for Whisper Large-v3) while matching or exceeding its English accuracy.
+- **Greedy search is sufficient** -- no beam search needed for high-quality output, reducing CPU cost.
+
+**[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)** provides the inference runtime as a single C library with Swift interop:
+
+- Mel spectrogram extraction matched to Parakeet's training configuration (128-dim log-mel features)
+- TDT transducer decoding with blank penalty and optional modified beam search for hotword boosting
+- Bundled [Silero VAD](https://github.com/snakers4/silero-vad) for speech segmentation, preventing transducer looping on long audio
+- Multi-threaded CPU inference with configurable thread counts
+
+This combination lets the app focus on UX (hotkey management, text insertion, recording HUD) while sherpa-onnx handles the entire audio-to-text pipeline locally.
+
 ## Permissions
 
 macOS will prompt for:
