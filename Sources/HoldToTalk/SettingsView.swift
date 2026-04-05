@@ -151,6 +151,56 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Text Cleanup") {
+                let availability = TextCleanup.checkAvailability()
+                Toggle("Clean up text with Apple Intelligence", isOn: $engine.textCleanupEnabled)
+                    .disabled(availability != .available)
+
+                HStack(spacing: 6) {
+                    if availability == .available {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text("Apple Intelligence is available")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(.orange)
+                        Text(textCleanupUnavailableReason(availability))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text("When enabled, transcribed text is cleaned up on-device to fix punctuation, remove repeated words, and remove filler words. Meaning is preserved.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                DisclosureGroup("Prompt") {
+                    TextEditor(text: $engine.textCleanupPrompt)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(minHeight: 80, maxHeight: 120)
+                        .scrollContentBackground(.hidden)
+                        .padding(4)
+                        .background(.background)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.secondary.opacity(0.2))
+                        )
+
+                    HStack {
+                        Spacer()
+                        if engine.textCleanupPrompt != TextCleanup.defaultPrompt {
+                            Button("Reset to Default") {
+                                engine.textCleanupPrompt = TextCleanup.defaultPrompt
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
+
             Section("Speech Model") {
                 modelStatusView
                 ModelTrustView()
@@ -169,7 +219,7 @@ struct SettingsView: View {
 
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: 580)
+        .frame(width: 420, height: 720)
         .padding()
         .onAppear {
             modelManager.refreshDownloadStatus()
@@ -357,5 +407,20 @@ struct SettingsView: View {
     @discardableResult
     private func requestInputMonitoringPermission() -> PermissionRequestResult {
         requestInputMonitoringAccess()
+    }
+
+    private func textCleanupUnavailableReason(_ availability: TextCleanupAvailability) -> String {
+        switch availability {
+        case .available:
+            return "Apple Intelligence is available"
+        case .unavailableOSVersion:
+            return "Requires macOS 26 or later"
+        case .unavailableNotEnabled:
+            return "Enable Apple Intelligence in System Settings"
+        case .unavailableDeviceNotEligible:
+            return "This Mac does not support Apple Intelligence"
+        case .unavailableModelNotReady:
+            return "Apple Intelligence model is downloading"
+        }
     }
 }

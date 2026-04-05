@@ -67,6 +67,8 @@ final class DictationEngine: ObservableObject {
     @AppStorage(transcriptionProfileDefaultsKey) var transcriptionProfile = TranscriptionProfile.balanced.rawValue
     @AppStorage(hotkeyChoiceDefaultsKey) var hotkeyChoice = HotkeyManager.Hotkey.ctrl.rawValue
     @AppStorage(inputMonitoringPromptedDefaultsKey) private var hasPromptedInputMonitoring = false
+    @AppStorage(textCleanupEnabledDefaultsKey) var textCleanupEnabled = TextCleanup.checkAvailability() == .available
+    @AppStorage(textCleanupPromptDefaultsKey) var textCleanupPrompt = TextCleanup.defaultPrompt
 
     private let recorder = AudioRecorder()
     private var transcriber: Transcriber?
@@ -223,6 +225,8 @@ final class DictationEngine: ObservableObject {
         transcriptionProfile = TranscriptionProfile.balanced.rawValue
         hotkeyChoice = HotkeyManager.Hotkey.ctrl.rawValue
         hasPromptedInputMonitoring = false
+        textCleanupEnabled = TextCleanup.checkAvailability() == .available
+        textCleanupPrompt = TextCleanup.defaultPrompt
 
         modelManager.handleFreshOnboardingReset()
         refreshPermissionSnapshot()
@@ -301,7 +305,17 @@ final class DictationEngine: ObservableObject {
             lastRawText = raw
             debugLogSensitive("[holdtotalk] Raw", text: raw)
 
-            let finalText = raw
+            let finalText: String
+            if textCleanupEnabled {
+                let cleanupStart = Date()
+                let cleaned = await TextCleanup.cleanup(raw, prompt: textCleanupPrompt)
+                let cleanupTime = Date().timeIntervalSince(cleanupStart)
+                let changed = cleaned != raw
+                debugLog("[holdtotalk] Text cleanup \(changed ? "modified" : "unchanged") in \(String(format: "%.2f", cleanupTime))s")
+                finalText = cleaned
+            } else {
+                finalText = raw
+            }
             lastCleanText = finalText
 
             reactivateRecordingTargetAppIfNeeded()

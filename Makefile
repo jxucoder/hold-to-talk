@@ -2,11 +2,12 @@
  notarize notarize-app notarize-dmg release permissions-reset reset-fresh-test test-reset uninstall run clean
 
 APP_NAME := HoldToTalk
-APP_BUNDLE := .build/$(APP_NAME).app
+APP_DISPLAY_NAME := Hold To Talk
+APP_BUNDLE := .build/$(APP_DISPLAY_NAME).app
 APP_INSTALL_DIR ?= /Applications
 SIGNING_IDENTITY ?= -
 DIST_DIR ?= dist
-DMG_VOLUME_NAME ?= Hold to Talk $(VERSION)
+DMG_VOLUME_NAME ?= Hold To Talk $(VERSION)
 APP_STORE ?= 0
 
 VERSION := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
@@ -35,6 +36,7 @@ build:
 	@cp Resources/Info.plist "$(APP_BUNDLE)/Contents/"
 	@cp Resources/HoldToTalk.icns "$(APP_BUNDLE)/Contents/Resources/"
 	@cp Resources/PrivacyInfo.xcprivacy "$(APP_BUNDLE)/Contents/Resources/"
+	@cp -R Resources/en.lproj "$(APP_BUNDLE)/Contents/Resources/"
 	@if [ -d ".build/release/HoldToTalk_HoldToTalk.bundle" ]; then \
 		cp -R ".build/release/HoldToTalk_HoldToTalk.bundle" "$(APP_BUNDLE)/Contents/Resources/"; \
 	elif [ -d ".build/arm64-apple-macosx/release/HoldToTalk_HoldToTalk.bundle" ]; then \
@@ -69,10 +71,10 @@ build:
 
 install: build
 	@mkdir -p "$(APP_INSTALL_DIR)"
-	@rm -rf "$(APP_INSTALL_DIR)/$(APP_NAME).app"
+	@rm -rf "$(APP_INSTALL_DIR)/$(APP_DISPLAY_NAME).app"
 	@cp -R "$(APP_BUNDLE)" "$(APP_INSTALL_DIR)/"
-	@xattr -dr com.apple.quarantine "$(APP_INSTALL_DIR)/$(APP_NAME).app" 2>/dev/null || true
-	@echo "Installed to $(APP_INSTALL_DIR)/$(APP_NAME).app"
+	@xattr -dr com.apple.quarantine "$(APP_INSTALL_DIR)/$(APP_DISPLAY_NAME).app" 2>/dev/null || true
+	@echo "Installed to $(APP_INSTALL_DIR)/$(APP_DISPLAY_NAME).app"
 
 verify: build
 	@codesign --verify --deep --strict --verbose=2 "$(APP_BUNDLE)"
@@ -96,7 +98,7 @@ package-dmg: _check-direct-distribution build
 		--volume-name "$(DMG_VOLUME_NAME)" \
 		--output "$(DMG_PATH)"
 	@if [ "$(SIGNING_IDENTITY)" = "-" ]; then \
-		echo "warning: $(DMG_PATH) is ad-hoc signed; Accessibility and Input Monitoring tests across rebuilds may require removing and re-adding HoldToTalk in System Settings."; \
+		echo "warning: $(DMG_PATH) is ad-hoc signed; Accessibility and Input Monitoring tests across rebuilds may require removing and re-adding Hold To Talk in System Settings."; \
 	fi
 
 package-permission-test-dmg: _check-direct-distribution _check-signing package-dmg
@@ -141,7 +143,32 @@ test-reset:
 uninstall:
 	@APP_USER="$(APP_USER)" bash scripts/reset-fresh-test.sh --yes
 
-run: build
+run:
+	swift build
+	@rm -rf "$(APP_BUNDLE)"
+	@mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
+	@mkdir -p "$(APP_BUNDLE)/Contents/Resources"
+	@mkdir -p "$(APP_BUNDLE)/Contents/Frameworks"
+	@cp ".build/debug/$(APP_NAME)" "$(APP_BUNDLE)/Contents/MacOS/"
+	@cp Resources/Info.plist "$(APP_BUNDLE)/Contents/"
+	@cp Resources/HoldToTalk.icns "$(APP_BUNDLE)/Contents/Resources/"
+	@cp Resources/PrivacyInfo.xcprivacy "$(APP_BUNDLE)/Contents/Resources/"
+	@cp -R Resources/en.lproj "$(APP_BUNDLE)/Contents/Resources/"
+	@if [ -d ".build/debug/HoldToTalk_HoldToTalk.bundle" ]; then \
+		cp -R ".build/debug/HoldToTalk_HoldToTalk.bundle" "$(APP_BUNDLE)/Contents/Resources/"; \
+	elif [ -d ".build/arm64-apple-macosx/debug/HoldToTalk_HoldToTalk.bundle" ]; then \
+		cp -R ".build/arm64-apple-macosx/debug/HoldToTalk_HoldToTalk.bundle" "$(APP_BUNDLE)/Contents/Resources/"; \
+	fi
+	@SPARKLE_FW="$$(swift build --show-bin-path)/Sparkle.framework"; \
+	if [ -d "$$SPARKLE_FW" ]; then \
+		rsync -a --delete "$$SPARKLE_FW" "$(APP_BUNDLE)/Contents/Frameworks/"; \
+		install_name_tool -add_rpath @executable_path/../Frameworks "$(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)" 2>/dev/null || true; \
+		codesign -f --deep -s - "$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework"; \
+	fi
+	@plutil -remove HTTStableCodeIdentity "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
+	@plutil -insert HTTStableCodeIdentity -bool false "$(APP_BUNDLE)/Contents/Info.plist"
+	@codesign -f -s - --entitlements Resources/HoldToTalk.dev.entitlements "$(APP_BUNDLE)"
+	@echo "Built debug $(APP_BUNDLE)"
 	open "$(APP_BUNDLE)"
 
 clean:

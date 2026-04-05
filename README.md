@@ -32,7 +32,7 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
 
 ### Download pre-built binary
 
-Grab the latest notarized `DMG` or `ZIP` from [GitHub Releases](https://github.com/jxucoder/hold-to-talk/releases), install `HoldToTalk.app` into `/Applications`, and open it.
+Grab the latest notarized `DMG` or `ZIP` from [GitHub Releases](https://github.com/jxucoder/hold-to-talk/releases), install `Hold To Talk.app` into `/Applications`, and open it.
 
 ### Homebrew
 
@@ -45,8 +45,8 @@ brew install jxucoder/tap/holdtotalk
 On first launch, Hold to Talk will guide you through:
 
 1. Granting **Microphone**, **Accessibility**, and **Input Monitoring**
-2. Downloading the selected Whisper model if it is not already present
-3. Warming up the active model; the first transcription after launch or after switching models may be slightly slower
+2. Downloading the speech recognition model
+3. Warming up the model; the first transcription after launch may be slightly slower
 
 ### Build from source
 
@@ -56,10 +56,10 @@ Requires Xcode command line tools.
 git clone https://github.com/jxucoder/hold-to-talk.git
 cd hold-to-talk
 make build
-make install   # installs HoldToTalk.app to /Applications
+make install   # installs "Hold To Talk.app" to /Applications
 make run
 
-# Clean uninstall + reset local HoldToTalk state + reset permissions for first-run testing
+# Clean uninstall + reset local Hold To Talk state + reset permissions for first-run testing
 make test-reset
 ```
 

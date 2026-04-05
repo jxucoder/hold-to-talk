@@ -25,5 +25,5 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
-          name: HoldToTalk.app
-          path: .build/HoldToTalk.app
+          name: Hold To Talk.app
+          path: ".build/Hold To Talk.app"

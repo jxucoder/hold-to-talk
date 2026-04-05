@@ -21,7 +21,6 @@ if !isAppStoreBuild {
 
 let package = Package(
     name: "HoldToTalk",
-    defaultLocalization: "en",
     platforms: [.macOS(.v15)],
     dependencies: packageDependencies,
     targets: [

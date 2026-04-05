@@ -9,7 +9,7 @@ cask "holdtotalk" do
 
   depends_on macos: ">= :sonoma"
 
-  app "HoldToTalk.app"
+  app "Hold To Talk.app"
 
   zap trash: [
     "~/Library/Preferences/com.holdtotalk.app.plist",

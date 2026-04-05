@@ -12,7 +12,7 @@ on:
 
 env:
   APP_NAME: HoldToTalk
-  APP_BUNDLE: .build/HoldToTalk.app
+  APP_BUNDLE: ".build/Hold To Talk.app"
 
 jobs:
   build-and-upload:
@@ -103,6 +103,7 @@ jobs:
           cp Resources/Info.plist "$APP_BUNDLE/Contents/"
           cp Resources/HoldToTalk.icns "$APP_BUNDLE/Contents/Resources/"
           cp Resources/PrivacyInfo.xcprivacy "$APP_BUNDLE/Contents/Resources/"
+          cp -R Resources/en.lproj "$APP_BUNDLE/Contents/Resources/"
           cp "$APPSTORE_PROFILE_PATH" "$APP_BUNDLE/Contents/embedded.provisionprofile"
 
           if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework" ]; then

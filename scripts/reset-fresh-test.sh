@@ -2,7 +2,9 @@
 set -euo pipefail
 
 APP_NAME="HoldToTalk"
+APP_DISPLAY_NAME="Hold To Talk"
 BUNDLE_ID="com.holdtotalk.app"
+DEBUG_BUNDLE_ID="com.holdtotalk.debug"
 APP_USER="${APP_USER:-${SUDO_USER:-$USER}}"
 ASSUME_YES=0
 FAILED_PATHS=()
@@ -16,15 +18,15 @@ Preferred shortcut from the repo root:
   make test-reset
   make uninstall
 
-Removes HoldToTalk.app and app-specific local state so you can test from a clean slate:
-- /Applications/HoldToTalk.app
-- ~/Applications/HoldToTalk.app
+Removes Hold To Talk.app and app-specific local state so you can test from a clean slate:
+- /Applications/Hold To Talk.app
+- ~/Applications/Hold To Talk.app
 - app preferences, caches, logs, saved state
 - sandbox container data
-- downloaded Whisper models
-- TCC permissions for Microphone, Accessibility, and Input Monitoring
+- downloaded speech models
+- TCC permissions for Microphone, Accessibility, Keyboard Access, and Input Monitoring
 
-If /Applications/HoldToTalk.app exists and is not writable by your current user,
+If /Applications/Hold To Talk.app exists and is not writable by your current user,
 re-run with:
 
   sudo APP_USER=$USER bash scripts/reset-fresh-test.sh --yes
@@ -87,8 +89,8 @@ resolve_home() {
 }
 
 USER_HOME="$(resolve_home "${APP_USER}")"
-SYSTEM_APP="/Applications/${APP_NAME}.app"
-USER_APP="${USER_HOME}/Applications/${APP_NAME}.app"
+SYSTEM_APP="/Applications/${APP_DISPLAY_NAME}.app"
+USER_APP="${USER_HOME}/Applications/${APP_DISPLAY_NAME}.app"
 
 run_as_app_user() {
   if [[ "$(id -un)" == "${APP_USER}" ]]; then
@@ -138,15 +140,22 @@ if [[ ! -d "${USER_HOME}" ]]; then
   exit 1
 fi
 
-if [[ "${PERMISSIONS_ONLY}" -ne 1 && -e "${SYSTEM_APP}" && "${EUID}" -ne 0 && ! -w "${SYSTEM_APP}" ]]; then
-  echo "error: ${SYSTEM_APP} exists and is not writable by $(id -un)." >&2
-  echo "re-run with: sudo APP_USER=${APP_USER} bash scripts/reset-fresh-test.sh --yes" >&2
-  exit 1
-fi
+LEGACY_SYSTEM_APP="/Applications/${APP_NAME}.app"
+LEGACY_USER_APP="${USER_HOME}/Applications/${APP_NAME}.app"
+
+for app_path in "${SYSTEM_APP}" "${LEGACY_SYSTEM_APP}"; do
+  if [[ "${PERMISSIONS_ONLY}" -ne 1 && -e "${app_path}" && "${EUID}" -ne 0 && ! -w "${app_path}" ]]; then
+    echo "error: ${app_path} exists and is not writable by $(id -un)." >&2
+    echo "re-run with: sudo APP_USER=${APP_USER} bash scripts/reset-fresh-test.sh --yes" >&2
+    exit 1
+  fi
+done
 
 APP_PATHS=(
   "${SYSTEM_APP}"
   "${USER_APP}"
+  "${LEGACY_SYSTEM_APP}"
+  "${LEGACY_USER_APP}"
   "${USER_HOME}/Library/Application Support/HoldToTalk"
   "${USER_HOME}/Library/Application Support/${BUNDLE_ID}"
   "${USER_HOME}/Library/Caches/${BUNDLE_ID}"
@@ -163,13 +172,13 @@ APP_PATHS=(
 if [[ "${ASSUME_YES}" -ne 1 ]]; then
   if [[ "${PERMISSIONS_ONLY}" -eq 1 ]]; then
     cat <<EOF
-This will reset HoldToTalk macOS permissions for user ${APP_USER} (${USER_HOME}):
+This will reset Hold To Talk macOS permissions for user ${APP_USER} (${USER_HOME}):
 EOF
     print_path "TCC: Microphone, Accessibility, ListenEvent"
     print_path "App install and local app state will be preserved"
   else
     cat <<EOF
-This will delete HoldToTalk state for user ${APP_USER} (${USER_HOME}):
+This will delete Hold To Talk state for user ${APP_USER} (${USER_HOME}):
 EOF
     for path in "${APP_PATHS[@]}"; do
       print_path "${path}"
@@ -201,11 +210,15 @@ if [[ "${PERMISSIONS_ONLY}" -ne 1 ]]; then
   remove_matches "${USER_HOME}/Library/Logs/DiagnosticReports" "${APP_NAME}*"
 
   run_as_app_user defaults delete "${BUNDLE_ID}" >/dev/null 2>&1 || true
+  run_as_app_user defaults delete "${DEBUG_BUNDLE_ID}" >/dev/null 2>&1 || true
 fi
 
-run_as_app_user tccutil reset Microphone "${BUNDLE_ID}" >/dev/null 2>&1 || true
-run_as_app_user tccutil reset Accessibility "${BUNDLE_ID}" >/dev/null 2>&1 || true
-run_as_app_user tccutil reset ListenEvent "${BUNDLE_ID}" >/dev/null 2>&1 || true
+for bid in "${BUNDLE_ID}" "${DEBUG_BUNDLE_ID}"; do
+  run_as_app_user tccutil reset Microphone "${bid}" >/dev/null 2>&1 || true
+  run_as_app_user tccutil reset Accessibility "${bid}" >/dev/null 2>&1 || true
+  run_as_app_user tccutil reset PostEvent "${bid}" >/dev/null 2>&1 || true
+  run_as_app_user tccutil reset ListenEvent "${bid}" >/dev/null 2>&1 || true
+done
 run_as_app_user killall cfprefsd >/dev/null 2>&1 || true
 
 if [[ "${PERMISSIONS_ONLY}" -ne 1 && "${#FAILED_PATHS[@]}" -gt 0 ]]; then
@@ -232,10 +245,10 @@ test, use: make test-reset
 EOF
 else
   cat <<EOF
-Hold to Talk has been removed for ${APP_USER}.
+Hold To Talk has been removed for ${APP_USER}.
 
 Fresh-start test sequence:
-  1. Install HoldToTalk.app again
+  1. Install Hold To Talk.app again
   2. Launch it from /Applications
   3. Onboarding, models, and permissions should behave like first run
 EOF

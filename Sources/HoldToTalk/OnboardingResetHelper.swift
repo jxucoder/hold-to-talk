@@ -9,6 +9,8 @@ let whisperModelDefaultsKey = "whisperModel"
 let transcriptionProfileDefaultsKey = "transcriptionProfile"
 let hotkeyChoiceDefaultsKey = "hotkeyChoice"
 let diagnosticLoggingEnabledDefaultsKey = "diagnosticLoggingEnabled"
+let textCleanupEnabledDefaultsKey = "textCleanupEnabled"
+let textCleanupPromptDefaultsKey = "textCleanupPrompt"
 
 enum OnboardingLaunchPreparation: Equatable {
     case none

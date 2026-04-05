@@ -51,11 +51,11 @@ Use this sequence to test onboarding exactly as a first-time user:
    - Preferred: `make test-reset`
    - `make reset-fresh-test`
    - `bash scripts/reset-fresh-test.sh`
-   - If `/Applications/HoldToTalk.app` is admin-owned: `sudo APP_USER=$USER bash scripts/reset-fresh-test.sh --yes`
+   - If `/Applications/Hold To Talk.app` is admin-owned: `sudo APP_USER=$USER bash scripts/reset-fresh-test.sh --yes`
    - If the sandbox container under `~/Library/Containers/com.holdtotalk.app` survives with `Operation not permitted`, grant Full Disk Access to your terminal app and rerun
 2. Install app into `/Applications`:
    - `make install`
-3. Launch from `/Applications/HoldToTalk.app`
+3. Launch from `/Applications/Hold To Talk.app`
 
 ## Reset Commands
 
