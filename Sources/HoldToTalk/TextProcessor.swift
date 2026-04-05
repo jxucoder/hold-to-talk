@@ -1,9 +1,44 @@
 import Foundation
-#if canImport(FoundationModels)
-import FoundationModels
-#endif
+import SwiftLlama
 
-/// Cleans up raw transcription via Apple Intelligence (on-device).
+/// Manages the llama.cpp model instance for text cleanup.
+actor TextProcessorEngine {
+    static let shared = TextProcessorEngine()
+
+    private var llama: SwiftLlama?
+    private var loadedModelPath: String?
+
+    func loadIfNeeded(modelPath: String) throws {
+        guard loadedModelPath != modelPath else { return }
+        let config = Configuration(
+            topK: 20,
+            topP: 0.9,
+            nCTX: 2048,
+            temperature: 0.1,
+            maxTokenCount: 512,
+            stopTokens: ["<end_of_turn>"]
+        )
+        llama = try SwiftLlama(modelPath: modelPath, modelConfiguration: config)
+        loadedModelPath = modelPath
+    }
+
+    func generate(systemPrompt: String, userMessage: String) async throws -> String {
+        guard let llama else { throw TextProcessorError.modelNotLoaded }
+        let prompt = Prompt(
+            type: .gemma,
+            systemPrompt: systemPrompt,
+            userMessage: userMessage
+        )
+        return try await llama.start(for: prompt)
+    }
+
+    func unload() {
+        llama = nil
+        loadedModelPath = nil
+    }
+}
+
+/// Cleans up raw transcription via Gemma 3 1B (on-device).
 struct TextProcessor {
     static let defaultPrompt = """
         You fix grammar and punctuation in speech-to-text transcriptions. \
@@ -16,13 +51,9 @@ struct TextProcessor {
     var prompt: String
 
     static var isAvailable: Bool {
-        #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) {
-            let model = SystemLanguageModel.default
-            if case .available = model.availability { return true }
-        }
-        #endif
-        return false
+        let modelPath = ModelManager.modelBase
+            .appendingPathComponent(CleanupModelInfo.fileName)
+        return FileManager.default.fileExists(atPath: modelPath.path)
     }
 
     private static func userMessage(_ raw: String) -> String {
@@ -39,6 +70,8 @@ struct TextProcessor {
             #"</?transcription>"#,
             #"</?model>"#,
             #"/model"#,
+            #"<start_of_turn>[a-z]*"#,
+            #"<end_of_turn>"#,
         ]
         for pattern in patterns {
             result = result.replacingOccurrences(
@@ -51,23 +84,32 @@ struct TextProcessor {
     }
 
     func cleanup(_ raw: String) async throws -> String {
-        #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) {
-            let model = SystemLanguageModel.default
-            guard case .available = model.availability else {
-                print("[cleanup] Apple Intelligence not available, returning raw text")
-                return raw
-            }
-            let instructions = prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? Self.defaultPrompt
-                : prompt
-            let session = LanguageModelSession(instructions: instructions)
-            let response = try await session.respond(to: Self.userMessage(raw))
-            let cleaned = Self.stripLeakedTags(response.content)
-            return cleaned.isEmpty ? raw : cleaned
+        let modelPath = ModelManager.modelBase
+            .appendingPathComponent(CleanupModelInfo.fileName).path
+
+        try await TextProcessorEngine.shared.loadIfNeeded(modelPath: modelPath)
+
+        let instructions = prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? Self.defaultPrompt
+            : prompt
+
+        let response = try await TextProcessorEngine.shared.generate(
+            systemPrompt: instructions,
+            userMessage: Self.userMessage(raw)
+        )
+
+        let cleaned = Self.stripLeakedTags(response)
+        return cleaned.isEmpty ? raw : cleaned
+    }
+}
+
+enum TextProcessorError: LocalizedError {
+    case modelNotLoaded
+
+    var errorDescription: String? {
+        switch self {
+        case .modelNotLoaded:
+            return "Cleanup model is not loaded"
         }
-        #endif
-        print("[cleanup] Apple Intelligence not supported on this OS version")
-        return raw
     }
 }

@@ -35,6 +35,11 @@ build:
 	@cp Resources/Info.plist "$(APP_BUNDLE)/Contents/"
 	@cp Resources/HoldToTalk.icns "$(APP_BUNDLE)/Contents/Resources/"
 	@cp Resources/PrivacyInfo.xcprivacy "$(APP_BUNDLE)/Contents/Resources/"
+	@if [ -d ".build/release/HoldToTalk_HoldToTalk.bundle" ]; then \
+		cp -R ".build/release/HoldToTalk_HoldToTalk.bundle" "$(APP_BUNDLE)/Contents/Resources/"; \
+	elif [ -d ".build/arm64-apple-macosx/release/HoldToTalk_HoldToTalk.bundle" ]; then \
+		cp -R ".build/arm64-apple-macosx/release/HoldToTalk_HoldToTalk.bundle" "$(APP_BUNDLE)/Contents/Resources/"; \
+	fi
 	@if [ "$(APP_STORE)" = "1" ]; then \
 		plutil -remove SUFeedURL "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true; \
 		plutil -remove SUPublicEDKey "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true; \

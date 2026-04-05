@@ -1,5 +1,4 @@
 import Foundation
-import WhisperKit
 
 enum TranscriptionProfile: String, CaseIterable, Identifiable {
     case fast
@@ -19,51 +18,47 @@ enum TranscriptionProfile: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .fast:
-            return "Fastest transcription with minimal post-processing."
+            return "Fastest transcription using all CPU cores."
         case .balanced:
-            return "Recommended default for speed and quality."
+            return "Recommended default balancing speed and CPU usage."
         case .best:
-            return "Higher accuracy with slower transcription."
+            return "Lower thread count, may yield slightly better quality on some systems."
+        }
+    }
+
+    var numThreads: Int {
+        let cores = max(2, ProcessInfo.processInfo.activeProcessorCount)
+        switch self {
+        case .fast: return min(12, cores)
+        case .balanced: return max(2, min(cores / 2, 8))
+        case .best: return max(2, min(cores / 2, 4))
         }
     }
 }
 
-/// Local speech-to-text via WhisperKit (Core ML accelerated on Apple Silicon).
-/// Actor isolation eliminates data races on the mutable `whisper` property.
+/// Local speech-to-text via sherpa-onnx with NVIDIA Parakeet TDT model.
+/// Actor isolation eliminates data races on the mutable recognizer property.
 actor Transcriber {
-    private var whisper: WhisperKit?
-    private var loadTask: Task<WhisperKit, Error>?
-    private var decodeWarmupTask: Task<Void, Error>?
+    private var recognizer: SherpaOnnxOfflineRecognizer?
+    private var loadTask: Task<SherpaOnnxOfflineRecognizer, Error>?
     private var hasCompletedDecodeWarmup = false
-    let modelSize: String
 
-    init(modelSize: String = "small.en") {
-        self.modelSize = modelSize
-    }
-
-    func loadModel() async throws {
-        guard whisper == nil else { return }
+    func loadModel(numThreads: Int = 4) async throws {
+        guard recognizer == nil else { return }
 
         if let loadTask {
-            whisper = try await loadTask.value
+            recognizer = try await loadTask.value
             return
         }
 
-        print("[transcriber] Loading \(modelSize)…")
-        let modelSize = self.modelSize
+        print("[transcriber] Loading Parakeet TDT 0.6B...")
         let task = Task {
-            try await WhisperKit(
-                model: modelSize,
-                downloadBase: ModelManager.modelBase,
-                verbose: false,
-                prewarm: true,
-                load: true
-            )
+            try createRecognizer(numThreads: numThreads)
         }
         loadTask = task
         defer { loadTask = nil }
 
-        whisper = try await task.value
+        recognizer = try await task.value
         print("[transcriber] Ready.")
     }
 
@@ -72,145 +67,259 @@ actor Transcriber {
             return
         }
 
-        if let decodeWarmupTask {
-            try await decodeWarmupTask.value
-            return
-        }
+        try await loadModel(numThreads: profile.numThreads)
+        guard let recognizer, !hasCompletedDecodeWarmup else { return }
 
-        let task = Task { [self] in
-            try await runDecodeWarmup(profile: profile)
-        }
-        decodeWarmupTask = task
-        defer { decodeWarmupTask = nil }
-
-        try await task.value
+        print("[transcriber] Running decode warm-up...")
+        let silence = Array(repeating: Float(0), count: 16000) // 1 second of silence
+        _ = recognizer.decode(samples: silence, sampleRate: 16000)
         hasCompletedDecodeWarmup = true
         print("[transcriber] Decode warm-up complete.")
     }
 
-    /// Transcribe 16 kHz mono float audio → text.
+    /// Transcribe 16 kHz mono float audio to text.
     func transcribe(_ audio: [Float], profile: TranscriptionProfile = .balanced) async throws -> String {
-        if let decodeWarmupTask {
-            try await decodeWarmupTask.value
-        } else if whisper == nil {
-            try await loadModel()
+        if recognizer == nil {
+            try await loadModel(numThreads: profile.numThreads)
         }
-        guard let whisper, !audio.isEmpty else { return "" }
+        guard let recognizer, !audio.isEmpty else { return "" }
 
-        let durationSeconds = Double(audio.count) / Double(WhisperKit.sampleRate)
-        let options = decodingOptions(forDuration: durationSeconds, profile: profile)
-        let results = try await whisper.transcribe(audioArray: audio, decodeOptions: options)
-        let texts = results.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let merged = Self.mergeOverlappingTexts(texts)
-        return Self.deduplicateRepeatedPhrases(merged)
+        let normalized = Self.normalizeAudio(audio)
+
+        // Use Silero VAD to extract speech segments to strip silence
+        // and avoid transducer looping on very long audio.
+        let segments = Self.extractSpeechSegments(normalized)
+        let segInfo = segments.map { String(format: "%.1fs", Float($0.count) / 16000.0) }
+        NSLog("[holdtotalk] VAD produced %d segments: %@", segments.count, segInfo.description)
+        debugLog("[holdtotalk] VAD produced \(segments.count) segments: \(segInfo)")
+        guard !segments.isEmpty else { return "" }
+
+        var parts: [String] = []
+        for (i, segment) in segments.enumerated() {
+            let result = recognizer.decode(samples: segment, sampleRate: 16000)
+            let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            NSLog("[holdtotalk] Segment %d (%.1fs): \"%@\"", i, Float(segment.count) / 16000.0, text)
+            debugLog("Segment \(i) (\(String(format: "%.1fs", Float(segment.count) / 16000.0))): \"\(text)\"")
+            if !text.isEmpty {
+                parts.append(text)
+            }
+        }
+        guard !parts.isEmpty else { return "" }
+        let joined = parts.joined(separator: " ")
+        let final = Self.deduplicateRepeatedPhrases(joined)
+        NSLog("[holdtotalk] Final text: \"%@\"", final)
+        return final
     }
 
-    /// Tunes decode strategy per profile with duration-aware chunking.
-    private func decodingOptions(forDuration durationSeconds: Double, profile: TranscriptionProfile) -> DecodingOptions {
-        let cores = max(2, ProcessInfo.processInfo.activeProcessorCount)
-        let fallbackCount: Int
-        let workerCount: Int
-        let chunkingThresholdSeconds: Double
+    /// Uses Silero VAD to extract speech segments from audio.
+    /// Each segment contains only speech (no silence padding) and is
+    /// capped at maxSpeechDuration (15s) to prevent transducer looping on very long audio.
+    static func extractSpeechSegments(_ audio: [Float], sampleRate: Int = 16000) -> [[Float]] {
+        guard !audio.isEmpty else { return [] }
 
-        switch profile {
-        case .fast:
-            fallbackCount = 2
-            workerCount = min(12, cores)
-            chunkingThresholdSeconds = 12
-        case .balanced:
-            fallbackCount = 2
-            workerCount = max(2, min(cores / 2, 8))
-            chunkingThresholdSeconds = 25
-        case .best:
-            fallbackCount = 4
-            workerCount = max(2, min(cores / 2, 6))
-            chunkingThresholdSeconds = 40
-        }
-        let chunking: ChunkingStrategy? = durationSeconds >= chunkingThresholdSeconds ? .vad : nil
-
-        return DecodingOptions(
-            temperatureFallbackCount: fallbackCount,
-            skipSpecialTokens: true,
-            withoutTimestamps: true,
-            concurrentWorkerCount: workerCount,
-            chunkingStrategy: chunking
-        )
-    }
-
-    /// Merges consecutive transcription result texts by detecting and removing overlapping
-    /// regions at chunk boundaries.
-    ///
-    /// WhisperKit can produce multiple results whose audio windows overlap, causing the tail
-    /// of one result and the head of the next to contain the same (or very similar) words.
-    /// This function finds the longest suffix of `texts[i]` that matches a prefix of
-    /// `texts[i+1]` (using word-level comparison, case-insensitive, punctuation-stripped)
-    /// and removes the duplicate from the second text.
-    static func mergeOverlappingTexts(_ texts: [String]) -> String {
-        guard !texts.isEmpty else { return "" }
-        guard texts.count > 1 else { return texts[0] }
-
-        var merged = texts[0]
-        for i in 1..<texts.count {
-            let overlapLen = findWordOverlap(suffix: merged, prefix: texts[i])
-            if overlapLen > 0 {
-                // Drop the first `overlapLen` words from texts[i]
-                let nextWords = texts[i].split(separator: " ", omittingEmptySubsequences: true)
-                let remaining = nextWords.dropFirst(overlapLen).joined(separator: " ")
-                if !remaining.isEmpty {
-                    merged += " " + remaining
-                }
+        // Try Bundle.module first, then fall back to known locations
+        let vadModelPath: String
+        if let bundlePath = Bundle.module.url(forResource: "silero_vad", withExtension: "onnx")?.path {
+            vadModelPath = bundlePath
+            NSLog("[holdtotalk] VAD model found via Bundle.module: %@", bundlePath)
+        } else {
+            // Bundle.module failed — try the app's Contents/Resources path
+            let appResourcePath = Bundle.main.bundlePath + "/Contents/Resources/HoldToTalk_HoldToTalk.bundle/silero_vad.onnx"
+            if FileManager.default.fileExists(atPath: appResourcePath) {
+                vadModelPath = appResourcePath
+                NSLog("[holdtotalk] VAD model found via app Resources: %@", appResourcePath)
             } else {
-                merged += " " + texts[i]
+                NSLog("[holdtotalk] WARNING: silero_vad.onnx not found. Bundle.module base: %@, app path tried: %@",
+                      Bundle.module.bundlePath, appResourcePath)
+                return splitAtSilenceGaps(audio, sampleRate: sampleRate)
             }
         }
-        return merged.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 
-    /// Returns the number of overlapping words between the suffix of `suffix` and the
-    /// prefix of `prefix`. Comparison is case-insensitive with punctuation stripped.
-    /// Requires at least 3 matching words to avoid false positives.
-    private static func findWordOverlap(suffix: String, prefix: String) -> Int {
-        let normalize: (String) -> String = { word in
-            word.lowercased()
-                .filter { $0.isLetter || $0.isNumber || $0.isWhitespace }
+        let sileroConfig = sherpaOnnxSileroVadModelConfig(
+            model: vadModelPath,
+            threshold: 0.45,
+            minSilenceDuration: 0.5,
+            minSpeechDuration: 0.25,
+            windowSize: 512,
+            maxSpeechDuration: 15.0
+        )
+        var vadConfig = sherpaOnnxVadModelConfig(
+            sileroVad: sileroConfig,
+            sampleRate: Int32(sampleRate),
+            numThreads: 1,
+            provider: "cpu"
+        )
+
+        let vad = SherpaOnnxVoiceActivityDetectorWrapper(
+            config: &vadConfig,
+            buffer_size_in_seconds: 120
+        )
+
+        // Feed audio in windowSize chunks as required by Silero VAD
+        let windowSize = 512
+        var offset = 0
+        while offset + windowSize <= audio.count {
+            let chunk = Array(audio[offset..<(offset + windowSize)])
+            vad.acceptWaveform(samples: chunk)
+            offset += windowSize
+        }
+        // Flush any remaining audio
+        vad.flush()
+
+        // Collect all speech segments
+        var segments: [[Float]] = []
+        while !vad.isEmpty() {
+            let segment = vad.front()
+            if segment.n > 0 {
+                segments.append(segment.samples)
+            }
+            vad.pop()
         }
 
-        let suffixWords = suffix.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
-        let prefixWords = prefix.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
-
-        guard suffixWords.count >= 3, prefixWords.count >= 3 else { return 0 }
-
-        // Try progressively shorter suffix windows, starting from the longest plausible overlap.
-        // Cap at half the shorter text to avoid matching the entire text.
-        let maxOverlap = min(suffixWords.count, prefixWords.count, 40)
-
-        for length in stride(from: maxOverlap, through: 3, by: -1) {
-            let suffixSlice = suffixWords.suffix(length)
-            let prefixSlice = prefixWords.prefix(length)
-
-            let matches = zip(suffixSlice, prefixSlice).filter {
-                normalize($0.0) == normalize($0.1)
-            }.count
-
-            // Allow up to 1 mismatched word for every 5 words to handle
-            // truncated words at chunk boundaries (e.g. "bout" vs "about").
-            let tolerance = max(1, length / 5)
-            if matches >= length - tolerance {
-                return length
+        // If VAD found nothing (e.g., very quiet speech), fall back
+        if segments.isEmpty {
+            let trimmed = trimSilence(audio, sampleRate: sampleRate)
+            if !trimmed.isEmpty {
+                return splitAtSilenceGaps(trimmed, sampleRate: sampleRate)
             }
         }
-        return 0
+
+        return segments
     }
 
-    /// Removes repeated phrases that Whisper sometimes hallucinates.
+    // MARK: - Audio Preprocessing
+
+    /// Trims leading and trailing silence from audio.
+    /// Scans in 100ms windows to find the first and last speech activity,
+    /// then returns audio between those points with a small buffer.
+    static func trimSilence(_ audio: [Float], sampleRate: Int = 16000) -> [Float] {
+        guard !audio.isEmpty else { return audio }
+        let windowSize = sampleRate / 10  // 100ms
+        let threshold: Float = 0.01       // RMS threshold for speech vs silence
+        let bufferSamples = sampleRate / 10 // 100ms buffer on each side
+
+        // Find first speech window (scan forward)
+        var firstSpeechStart = 0
+        var offset = 0
+        while offset < audio.count {
+            let end = min(offset + windowSize, audio.count)
+            let window = audio[offset..<end]
+            let rms = sqrtf(window.reduce(0) { $0 + $1 * $1 } / Float(window.count))
+            if rms > threshold {
+                firstSpeechStart = max(0, offset - bufferSamples)
+                break
+            }
+            offset = end
+        }
+        // If no speech found at all, return empty
+        guard offset < audio.count else { return [] }
+
+        // Find last speech window (scan backward)
+        var lastSpeechEnd = audio.count
+        offset = audio.count
+        while offset > firstSpeechStart {
+            let start = max(firstSpeechStart, offset - windowSize)
+            let window = audio[start..<offset]
+            let rms = sqrtf(window.reduce(0) { $0 + $1 * $1 } / Float(window.count))
+            if rms > threshold {
+                lastSpeechEnd = min(offset + bufferSamples, audio.count)
+                break
+            }
+            offset = start
+        }
+
+        return Array(audio[firstSpeechStart..<lastSpeechEnd])
+    }
+
+    /// Peak-normalizes audio to use the full [-1, 1] range.
+    /// Consistent levels help the mel feature extractor and prevent the
+    /// transducer from misinterpreting quiet audio as silence.
+    static func normalizeAudio(_ audio: [Float]) -> [Float] {
+        guard !audio.isEmpty else { return audio }
+        let peak = audio.reduce(Float(0)) { max($0, abs($1)) }
+        guard peak > 0.001 else { return audio } // essentially silent
+        let gain = min(1.0 / peak, 10.0) // cap gain at 10x to avoid amplifying noise
+        return audio.map { $0 * gain }
+    }
+
+    /// Splits audio into segments at silence gaps longer than 600ms.
+    /// Prevents transducer models from looping on long continuous audio.
+    /// Short recordings (< 8s) are returned as a single segment.
+    static func splitAtSilenceGaps(_ audio: [Float], sampleRate: Int = 16000) -> [[Float]] {
+        let maxSingleSegment = sampleRate * 8 // 8 seconds
+        guard audio.count > maxSingleSegment else { return [audio] }
+
+        let windowSize = sampleRate / 10       // 100ms analysis window
+        let threshold: Float = 0.01            // RMS threshold
+        let minGapWindows = 6                  // 600ms of silence = a gap
+        let minSegmentSamples = sampleRate * 2 // minimum 2s segment
+
+        // Classify each window as speech or silence
+        var silenceRuns: [(start: Int, end: Int)] = []
+        var currentSilenceStart: Int? = nil
+        var consecutiveSilent = 0
+        var offset = 0
+
+        while offset < audio.count {
+            let end = min(offset + windowSize, audio.count)
+            let window = audio[offset..<end]
+            let rms = sqrtf(window.reduce(0) { $0 + $1 * $1 } / Float(window.count))
+
+            if rms <= threshold {
+                if currentSilenceStart == nil { currentSilenceStart = offset }
+                consecutiveSilent += 1
+            } else {
+                if let start = currentSilenceStart, consecutiveSilent >= minGapWindows {
+                    silenceRuns.append((start: start, end: offset))
+                }
+                currentSilenceStart = nil
+                consecutiveSilent = 0
+            }
+            offset = end
+        }
+
+        // No suitable gaps found -- return as single segment
+        guard !silenceRuns.isEmpty else { return [audio] }
+
+        // Split at the silence midpoints
+        var segments: [[Float]] = []
+        var segStart = 0
+        for gap in silenceRuns {
+            let splitPoint = (gap.start + gap.end) / 2
+            if splitPoint - segStart >= minSegmentSamples {
+                segments.append(Array(audio[segStart..<splitPoint]))
+                segStart = splitPoint
+            }
+        }
+        // Add remaining audio
+        if segStart < audio.count {
+            let remaining = Array(audio[segStart...])
+            if remaining.count >= minSegmentSamples || segments.isEmpty {
+                segments.append(remaining)
+            } else if !segments.isEmpty {
+                // Merge short tail into last segment
+                segments[segments.count - 1].append(contentsOf: remaining)
+            }
+        }
+
+        return segments
+    }
+
+    /// Removes repeated phrases that speech models sometimes hallucinate.
     ///
     /// **Pass 1** splits on sentence-ending punctuation (`.` `!` `?`) and removes
     /// consecutive duplicate clauses. Comparison ignores trailing punctuation and
     /// whitespace so `"I love dogs. I love dogs"` is still caught.
     ///
-    /// **Pass 2** collapses runs of 3+ identical consecutive words into one,
+    /// **Pass 2** drops a trailing sentence whose last 2+ words match the tail of
+    /// the previous sentence -- catches garbled suffix echoes like
+    /// `"more changes? ore changes?"`.
+    ///
+    /// **Pass 3** collapses runs of 3+ identical consecutive words into one,
     /// preserving legitimate pairs like "that that" or "had had".
+    ///
+    /// **Pass 4** detects repeated multi-word n-gram loops where a phrase of 3-8
+    /// words repeats consecutively (e.g. "part of the sentence part of the sentence").
     static func deduplicateRepeatedPhrases(_ text: String) -> String {
         guard !text.isEmpty else { return text }
 
@@ -238,8 +347,6 @@ actor Transcriber {
 
         var deduped: [String] = []
         for sentence in sentences {
-            // Strip punctuation and whitespace for comparison so
-            // "I love dogs." and "I love dogs" are treated as equal.
             let normalized = sentence
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .trimmingCharacters(in: .punctuationCharacters)
@@ -253,10 +360,48 @@ actor Transcriber {
             }
             deduped.append(sentence)
         }
+
+        // --- Pass 2: suffix-overlap trailing fragment removal ---
+        // If the last sentence is shorter than the previous one, and its
+        // tail words match the tail of the previous sentence, it's a
+        // hallucinated echo (e.g. "more changes? ore changes?").
+        while deduped.count >= 2 {
+            let lastWords = normalizedWords(deduped[deduped.count - 1])
+            let prevWords = normalizedWords(deduped[deduped.count - 2])
+
+            // Only consider trailing fragments shorter than the previous sentence
+            guard lastWords.count < prevWords.count else { break }
+
+            // Very short fragments (1 char words like "e.") are likely garbage
+            if lastWords.count <= 1 && deduped[deduped.count - 1]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: .punctuationCharacters).count <= 2 {
+                deduped.removeLast()
+                continue
+            }
+
+            // Check if the last N words of the trailing sentence match
+            // the last N words of the previous sentence (N >= 2).
+            // Try from largest overlap down to 2 to handle garbled prefixes
+            // like "s to complete" where "s" is a fragment of "minutes".
+            let maxOverlap = min(lastWords.count, prevWords.count)
+            var matched = false
+            for overlapLen in stride(from: maxOverlap, through: 2, by: -1) {
+                let trailingTail = Array(lastWords.suffix(overlapLen))
+                let prevTail = Array(prevWords.suffix(overlapLen))
+                if trailingTail == prevTail {
+                    deduped.removeLast()
+                    matched = true
+                    break
+                }
+            }
+            if matched { continue }
+            break
+        }
+
         var result = deduped.joined()
 
-        // --- Pass 2: collapse runs of 3+ identical consecutive words ---
-        // Keeps legitimate pairs like "that that" or "had had" intact.
+        // --- Pass 3: collapse runs of 3+ identical consecutive words ---
         let words = result.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
         guard words.count > 2 else { return result.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -277,16 +422,90 @@ actor Transcriber {
         }
         result = dedupedWords.joined(separator: " ")
 
+        // --- Pass 4: n-gram loop detection (phrases of 3-8 words) ---
+        result = collapseRepeatedNGrams(result)
+
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func runDecodeWarmup(profile: TranscriptionProfile) async throws {
-        try await loadModel()
-        guard let whisper, !hasCompletedDecodeWarmup else { return }
+    /// Detects and collapses repeated multi-word n-gram loops.
+    /// Scans for n-grams of length 3..8 that repeat 2+ times consecutively
+    /// and replaces them with a single occurrence.
+    static func collapseRepeatedNGrams(_ text: String) -> String {
+        var words = text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard words.count >= 6 else { return text } // need at least 2x3 words
 
-        print("[transcriber] Running decode warm-up…")
-        let silence = Array(repeating: Float(0), count: Int(WhisperKit.sampleRate))
-        let options = decodingOptions(forDuration: 1.0, profile: profile)
-        _ = try await whisper.transcribe(audioArray: silence, decodeOptions: options)
+        // Try largest n-grams first so we catch the longest repeating unit
+        for n in stride(from: min(8, words.count / 2), through: 3, by: -1) {
+            var i = 0
+            var changed = false
+            while i + n <= words.count {
+                let phrase = words[i..<(i + n)].map { $0.lowercased().trimmingCharacters(in: .punctuationCharacters) }
+                var repeatCount = 1
+                var j = i + n
+                while j + n <= words.count {
+                    let next = words[j..<(j + n)].map { $0.lowercased().trimmingCharacters(in: .punctuationCharacters) }
+                    if next == phrase {
+                        repeatCount += 1
+                        j += n
+                    } else {
+                        break
+                    }
+                }
+                if repeatCount >= 2 {
+                    // Remove the duplicate repetitions, keep the first occurrence
+                    let removeStart = i + n
+                    let removeEnd = i + n * repeatCount
+                    words.removeSubrange(removeStart..<removeEnd)
+                    changed = true
+                    // Don't advance i -- re-check from same position
+                } else {
+                    i += 1
+                }
+            }
+            if changed {
+                // Restart from largest n-gram after a change
+                break
+            }
+        }
+        return words.joined(separator: " ")
+    }
+
+    /// Extracts lowercased words with punctuation stripped for comparison.
+    private static func normalizedWords(_ sentence: String) -> [String] {
+        sentence
+            .split(separator: " ", omittingEmptySubsequences: true)
+            .map { $0.lowercased().trimmingCharacters(in: .punctuationCharacters) }
+            .filter { !$0.isEmpty }
+    }
+
+    // MARK: - Private
+
+    private func createRecognizer(numThreads: Int) throws -> SherpaOnnxOfflineRecognizer {
+        let modelDir = ModelManager.modelBase
+            .appendingPathComponent(SpeechModelInfo.modelDirectoryName).path
+
+        let transducer = sherpaOnnxOfflineTransducerModelConfig(
+            encoder: modelDir + "/encoder.int8.onnx",
+            decoder: modelDir + "/decoder.int8.onnx",
+            joiner: modelDir + "/joiner.int8.onnx"
+        )
+        let modelConfig = sherpaOnnxOfflineModelConfig(
+            tokens: modelDir + "/tokens.txt",
+            transducer: transducer,
+            numThreads: numThreads,
+            provider: "cpu",
+            modelType: "nemo_transducer"
+        )
+        let featConfig = sherpaOnnxFeatureConfig(
+            sampleRate: 16000,
+            featureDim: 128
+        )
+        var config = sherpaOnnxOfflineRecognizerConfig(
+            featConfig: featConfig,
+            modelConfig: modelConfig,
+            blankPenalty: 2.0
+        )
+        return SherpaOnnxOfflineRecognizer(config: &config)
     }
 }

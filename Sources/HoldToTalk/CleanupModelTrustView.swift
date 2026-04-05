@@ -1,39 +1,39 @@
 import SwiftUI
 
-struct ModelTrustView: View {
+struct CleanupModelTrustView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("About this download")
                 .font(.headline)
 
-            Text(SpeechModelInfo.trustSummary)
+            Text(CleanupModelInfo.trustSummary)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 8) {
                 trustBadge("On-device")
-                trustBadge(SpeechModelInfo.languageSummary)
-                trustBadge("Parakeet TDT")
+                trustBadge("Grammar cleanup")
+                trustBadge("Gemma 3 1B")
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text("Model:")
                         .foregroundStyle(.secondary)
-                    Link("nvidia/parakeet-tdt-0.6b-v2", destination: SpeechModelInfo.parakeetURL)
+                    Link("google/gemma-3-1b-it (Q4_K_M)", destination: CleanupModelInfo.huggingFaceURL)
                 }
 
                 HStack(spacing: 6) {
                     Text("Runtime:")
                         .foregroundStyle(.secondary)
-                    Link("sherpa-onnx on GitHub", destination: SpeechModelInfo.sherpaOnnxURL)
+                    Text("llama.cpp (via SwiftLlama)")
                 }
 
                 HStack(spacing: 6) {
                     Text("License:")
                         .foregroundStyle(.secondary)
-                    Text("Apache 2.0")
+                    Link("Gemma License", destination: CleanupModelInfo.gemmaURL)
                 }
             }
             .font(.caption)

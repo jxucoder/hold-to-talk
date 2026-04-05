@@ -142,7 +142,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 8) {
                 featureRow("chevron.left.forwardslash.chevron.right", "Free and open-source")
                 featureRow("lock.fill", "Audio and transcripts stay on-device")
-                featureRow("bolt.fill", "Fast Apple Silicon speech models")
+                featureRow("bolt.fill", "Fast on-device speech model (Parakeet TDT)")
             }
             .frame(maxWidth: 360, alignment: .leading)
 
@@ -532,86 +532,44 @@ struct OnboardingView: View {
     // MARK: - Step 3: Model Download
 
     private var modelStep: some View {
-        let selectableModels = engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels
-        let recommendedModelName = modelDisplayName(engine.recommendedWhisperModelID)
-        let selectedModel = selectableModels.first(where: { $0.id == engine.whisperModel })
-            ?? WhisperModelInfo.all.first(where: { $0.id == engine.whisperModel })
-
-        return VStack(spacing: 20) {
+        VStack(spacing: 20) {
             Text("Download Model")
                 .font(.title2.bold())
 
-            Text("Hold to Talk needs an on-device speech model.\nPick one to download. Nothing starts until you approve it, you can inspect exactly where it comes from below, and you can change this later in Settings.")
+            Text("Hold to Talk needs an on-device speech model.\nThe download starts when you press the button below. You can inspect exactly where the model comes from.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 430)
 
-            Text("Recommended for this Mac: \(recommendedModelName)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            ModelTrustView()
+                .frame(maxWidth: 460)
 
-            Picker("Model", selection: $engine.whisperModel) {
-                ForEach(selectableModels) { model in
-                    Text("\(model.displayName)  (\(model.sizeLabel))")
-                        .tag(model.id)
-                }
-            }
-            .pickerStyle(.menu)
-            .frame(width: 280)
-
-            if let selectedModel {
-                ModelTrustView(model: selectedModel)
-                    .frame(maxWidth: 460)
-            }
-
-            let modelId = engine.whisperModel
-            let isDownloaded = modelManager.downloaded.contains(modelId)
-            let isDownloading = modelManager.downloading.contains(modelId)
-
-            if isDownloaded {
+            if modelManager.isDownloaded {
                 Label("Ready to use", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.headline)
-            } else if isDownloading {
+            } else if modelManager.isDownloading {
                 VStack(spacing: 8) {
-                    if let progress = modelManager.downloadProgress[modelId] {
-                        ProgressView(value: progress)
-                            .frame(width: 280)
-                        Text("Downloading... \(Int(progress * 100))%")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ProgressView()
-                        Text("Starting download...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    ProgressView(value: modelManager.downloadProgress)
+                        .frame(width: 280)
+                    Text("Downloading... \(Int(modelManager.downloadProgress * 100))%")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             } else {
-                Button(modelId == engine.recommendedWhisperModelID
-                    ? "Download Recommended Model"
-                    : "Download \(modelDisplayName(modelId))") {
-                    modelManager.download(modelId)
+                Button("Download \(SpeechModelInfo.displayName)") {
+                    modelManager.download()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
             }
 
-            if let error = modelManager.downloadErrors[modelId] {
+            if let error = modelManager.downloadError {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
                     .frame(maxWidth: 320)
-
-                if isModelUnavailableError(error), modelId != engine.recommendedWhisperModelID {
-                    Button("Use Recommended Model") {
-                        engine.whisperModel = engine.recommendedWhisperModelID
-                        modelManager.refreshDownloadStatus()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
             }
 
             Button("Continue") {
@@ -619,25 +577,16 @@ struct OnboardingView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(!isDownloaded)
+            .disabled(!modelManager.isDownloaded)
             .padding(.top, 4)
         }
         .padding(32)
         .onAppear {
             modelManager.refreshDownloadStatus()
-            ensureSupportedModelSelection()
-            warmUpSelectedModelIfReady()
+            warmUpModelIfReady()
         }
-        .onChange(of: engine.whisperModel) {
-            modelManager.refreshDownloadStatus()
-            ensureSupportedModelSelection()
-            // Do NOT auto-download on model selection change — the user should explicitly
-            // press "Download" for the new selection. Auto-downloading on every picker
-            // change wastes bandwidth if the user is browsing options on a metered connection.
-            warmUpSelectedModelIfReady()
-        }
-        .onChange(of: modelManager.downloaded) {
-            warmUpSelectedModelIfReady()
+        .onChange(of: modelManager.isDownloaded) {
+            warmUpModelIfReady()
         }
     }
 
@@ -747,35 +696,9 @@ struct OnboardingView: View {
         }
     }
 
-    private func modelDisplayName(_ id: String) -> String {
-        let models = engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels
-        return models.first { $0.id == id }?.displayName
-            ?? WhisperModelInfo.all.first { $0.id == id }?.displayName
-            ?? id
-    }
-
-    private func ensureSupportedModelSelection() {
-        let normalized = WhisperModelInfo.normalizeModelID(engine.whisperModel)
-        if normalized != engine.whisperModel {
-            engine.whisperModel = normalized
-            return
-        }
-
-        let supportedIDs = Set((engine.availableWhisperModels.isEmpty ? WhisperModelInfo.all : engine.availableWhisperModels).map(\.id))
-        if !supportedIDs.contains(engine.whisperModel) {
-            engine.whisperModel = engine.recommendedWhisperModelID
-        }
-    }
-
-    private func warmUpSelectedModelIfReady() {
-        guard modelManager.downloaded.contains(engine.whisperModel) else { return }
+    private func warmUpModelIfReady() {
+        guard modelManager.isDownloaded else { return }
         engine.prewarmTranscriber()
-    }
-
-    private func isModelUnavailableError(_ error: String) -> Bool {
-        error.localizedCaseInsensitiveContains("No models found matching")
-            || error.localizedCaseInsensitiveContains("models unavailable")
-            || error.localizedCaseInsensitiveContains("Model variant unavailable")
     }
 
     private func isGranted(_ permission: PermissionRequirement) -> Bool {

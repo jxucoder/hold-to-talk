@@ -1,0 +1,5 @@
+module sherpa_onnx {
+    umbrella header "sherpa_onnx.h"
+    export *
+    link "c++"
+}

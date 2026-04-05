@@ -153,7 +153,7 @@ struct HoldToTalkApp: App {
         .defaultLaunchBehavior(.suppressed)
 
         Window("Hold to Talk Settings", id: "settings") {
-            SettingsView(engine: engine, modelManager: engine.modelManager, updater: appUpdater)
+            SettingsView(engine: engine, modelManager: engine.modelManager, cleanupModelManager: engine.cleanupModelManager, updater: appUpdater)
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)

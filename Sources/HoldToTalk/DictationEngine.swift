@@ -3,7 +3,7 @@ import AppKit
 import Combine
 import AVFoundation
 
-/// Orchestrates the record → transcribe → cleanup → insert pipeline.
+/// Orchestrates the record -> transcribe -> cleanup -> insert pipeline.
 @MainActor
 final class DictationEngine: ObservableObject {
     enum State: Equatable {
@@ -15,9 +15,9 @@ final class DictationEngine: ObservableObject {
         var label: String {
             switch self {
             case .idle:         "Ready"
-            case .recording:    "Recording…"
-            case .transcribing: "Transcribing…"
-            case .cleaning:     "Cleaning…"
+            case .recording:    "Recording..."
+            case .transcribing: "Transcribing..."
+            case .cleaning:     "Cleaning..."
             }
         }
 
@@ -68,49 +68,32 @@ final class DictationEngine: ObservableObject {
     }()
 
     @AppStorage(onboardingCompleteDefaultsKey) var onboardingComplete = false
-    @AppStorage(whisperModelDefaultsKey) var whisperModel = WhisperModelInfo.defaultModelID
     @AppStorage(transcriptionProfileDefaultsKey) var transcriptionProfile = TranscriptionProfile.balanced.rawValue
     @AppStorage(cleanupEnabledDefaultsKey) var cleanupEnabled = true
     @AppStorage(cleanupPromptDefaultsKey) var cleanupPrompt = TextProcessor.defaultPrompt
     @AppStorage(hotkeyChoiceDefaultsKey) var hotkeyChoice = HotkeyManager.Hotkey.ctrl.rawValue
     @AppStorage(inputMonitoringPromptedDefaultsKey) private var hasPromptedInputMonitoring = false
 
-    let availableWhisperModels: [WhisperModelInfo]
-    let recommendedWhisperModelID: String
-
     private let recorder = AudioRecorder()
     private var transcriber: Transcriber?
     private let hotkeyManager = HotkeyManager()
     let modelManager = ModelManager()
+    let cleanupModelManager = CleanupModelManager()
     private var didStart = false
     private var recordingTargetAppPID: pid_t?
     private var recordingTargetBundleID: String?
-    // Fix #14: keep a handle on the AX poll task so stop() can cancel it
     private var axPollTask: Task<Void, Never>?
     private var activationObserver: NSObjectProtocol?
     private var transcriberWarmupTask: Task<Void, Never>?
-    private var activeWarmupKey: String?
-    private var completedWarmupKey: String?
+    private var completedWarmup = false
 
     init() {
-        let profile = WhisperModelInfo.deviceModelProfile()
-        availableWhisperModels = profile.available
-        recommendedWhisperModelID = profile.recommendedID
         recorder.levelHandler = { [weak self] level in
             DispatchQueue.main.async {
                 self?.recordingLevel = level
             }
         }
 
-        // Migrate legacy IDs and guarantee current selection is device-supported.
-        if let stored = UserDefaults.standard.string(forKey: whisperModelDefaultsKey) {
-            let normalized = WhisperModelInfo.normalizeModelID(stored)
-            whisperModel = availableWhisperModels.contains(where: { $0.id == normalized })
-                ? normalized
-                : recommendedWhisperModelID
-        } else {
-            whisperModel = recommendedWhisperModelID
-        }
         if TranscriptionProfile(rawValue: transcriptionProfile) == nil {
             transcriptionProfile = TranscriptionProfile.balanced.rawValue
         }
@@ -118,6 +101,9 @@ final class DictationEngine: ObservableObject {
         if preferredHotkey.rawValue != hotkeyChoice {
             hotkeyChoice = preferredHotkey.rawValue
         }
+
+        // One-time migration: clean up legacy WhisperKit models and defaults
+        migrateLegacyWhisperKit()
 
         Task { @MainActor [weak self] in
             guard let self, self.onboardingComplete else { return }
@@ -133,40 +119,26 @@ final class DictationEngine: ObservableObject {
     }
 
     func prewarmTranscriber() {
+        guard !completedWarmup else { return }
+        guard transcriberWarmupTask == nil else { return }
+
         let activeTranscriber = ensureActiveTranscriber()
         let profile = resolvedTranscriptionProfile
-        let warmupKey = makeWarmupKey(modelSize: activeTranscriber.modelSize, profile: profile)
 
-        if completedWarmupKey == warmupKey {
-            return
-        }
-
-        if activeWarmupKey == warmupKey, transcriberWarmupTask != nil {
-            return
-        }
-
-        transcriberWarmupTask?.cancel()
-        activeWarmupKey = warmupKey
         transcriberWarmupTask = Task { [weak self] in
             do {
                 try await activeTranscriber.prepareForFirstTranscription(profile: profile)
             } catch {
                 debugLog("[holdtotalk] Model pre-warm failed: \(error)")
                 guard let self else { return }
-                if self.activeWarmupKey == warmupKey {
-                    self.activeWarmupKey = nil
-                    self.transcriberWarmupTask = nil
-                }
+                self.transcriberWarmupTask = nil
                 return
             }
 
             guard let self else { return }
-            if self.activeWarmupKey == warmupKey {
-                self.completedWarmupKey = warmupKey
-                self.activeWarmupKey = nil
-                self.transcriberWarmupTask = nil
-                debugLog("[holdtotalk] Model pre-warm complete [\(warmupKey)]")
-            }
+            self.completedWarmup = true
+            self.transcriberWarmupTask = nil
+            debugLog("[holdtotalk] Model pre-warm complete")
         }
     }
 
@@ -177,7 +149,6 @@ final class DictationEngine: ObservableObject {
         refreshPermissionSnapshot()
         if !hasPostEvent { pollPostEventPermission() }
 
-        // Immediately re-check accessibility when the user switches back to the app
         activationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
@@ -189,21 +160,17 @@ final class DictationEngine: ObservableObject {
             }
         }
 
-        // Do not auto-prompt privacy dialogs on startup.
-        // Onboarding/Settings handle explicit prompt sequencing to avoid stacked macOS dialogs.
         if !hasInputMonitoring {
-            debugLog("[holdtotalk] Input Monitoring missing — prompt deferred to onboarding/settings.")
+            debugLog("[holdtotalk] Input Monitoring missing -- prompt deferred to onboarding/settings.")
         }
         if !hasPostEvent {
-            debugLog("[holdtotalk] PostEvent (keyboard access) missing — prompt deferred to onboarding/settings.")
+            debugLog("[holdtotalk] PostEvent (keyboard access) missing -- prompt deferred to onboarding/settings.")
         }
 
-        // Pre-warm the audio engine so start() is near-instant on first hotkey press
         recorder.prepare()
 
         debugLog("[holdtotalk] Permissions Mic=\(hasMicrophone), PostEvent=\(hasPostEvent), InputMon=\(hasInputMonitoring)")
 
-        // Use DispatchQueue.main.async instead of Task { @MainActor in } for lower-latency dispatch
         hotkeyManager.onPress = { [weak self] in
             DispatchQueue.main.async { self?.beginRecording() }
         }
@@ -225,23 +192,20 @@ final class DictationEngine: ObservableObject {
 
         prewarmTranscriber()
 
-        debugLog("[holdtotalk] Ready — hold [\(hotkeyChoice)] to dictate.")
+        debugLog("[holdtotalk] Ready -- hold [\(hotkeyChoice)] to dictate.")
     }
 
     func stop() {
         hotkeyManager.stop()
         didStart = false
-        // Fix #14: cancel accessibility poll when the engine stops
         axPollTask?.cancel()
         axPollTask = nil
         transcriberWarmupTask?.cancel()
         transcriberWarmupTask = nil
-        activeWarmupKey = nil
         if let activationObserver {
             NotificationCenter.default.removeObserver(activationObserver)
         }
         activationObserver = nil
-        // Fix #3: cancel HUD subscription to prevent leaks on re-creation
         hudBinding?.cancel()
         hudBinding = nil
         recordingLevel = 0
@@ -259,12 +223,10 @@ final class DictationEngine: ObservableObject {
         recordingTargetAppPID = nil
         recordingTargetBundleID = nil
         transcriber = nil
-        activeWarmupKey = nil
-        completedWarmupKey = nil
+        completedWarmup = false
 
         onboardingComplete = false
         UserDefaults.standard.set(0, forKey: onboardingStepDefaultsKey)
-        whisperModel = recommendedWhisperModelID
         transcriptionProfile = TranscriptionProfile.balanced.rawValue
         cleanupEnabled = true
         cleanupPrompt = TextProcessor.defaultPrompt
@@ -272,6 +234,7 @@ final class DictationEngine: ObservableObject {
         hasPromptedInputMonitoring = false
 
         modelManager.handleFreshOnboardingReset()
+        cleanupModelManager.handleFreshOnboardingReset()
         refreshPermissionSnapshot()
     }
 
@@ -287,10 +250,10 @@ final class DictationEngine: ObservableObject {
 
         refreshPermissionSnapshot()
         if !hasPostEvent {
-            debugLog("[holdtotalk] ⚠ PostEvent (keyboard access) not granted — text insertion will be blocked by macOS.")
+            debugLog("[holdtotalk] PostEvent (keyboard access) not granted -- text insertion will be blocked by macOS.")
         }
         if !hasInputMonitoring {
-            debugLog("[holdtotalk] ⚠ Input Monitoring not granted — global hotkey may not trigger in other apps.")
+            debugLog("[holdtotalk] Input Monitoring not granted -- global hotkey may not trigger in other apps.")
         }
 
         recordingTargetAppPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
@@ -298,15 +261,13 @@ final class DictationEngine: ObservableObject {
         debugLog("[holdtotalk] Recording target: \(recordingTargetBundleID ?? "nil")")
         state = .recording
         recordingLevel = 0
-        // Kick warm-up again on press so model load/decode can overlap with the user's hold time.
         prewarmTranscriber()
 
-        // Fix #9: report microphone errors to the user instead of swallowing them
         do {
             try recorder.start()
             debugLog("[holdtotalk] Microphone started")
         } catch {
-            debugLog("[holdtotalk] ⚠ Microphone failed to start: \(error)")
+            debugLog("[holdtotalk] Microphone failed to start: \(error)")
             lastError = error.localizedDescription
             state = .idle
             recordingLevel = 0
@@ -323,7 +284,6 @@ final class DictationEngine: ObservableObject {
         guard !audio.isEmpty else {
             state = .idle
             lastError = nil
-            // Fix #10: clear stale target info on early return
             recordingTargetAppPID = nil
             recordingTargetBundleID = nil
             return
@@ -332,9 +292,7 @@ final class DictationEngine: ObservableObject {
         let duration = Double(audio.count) / 16000.0
         debugLog("[holdtotalk] Captured \(String(format: "%.1f", duration))s of audio")
 
-        // Transcribe
         state = .transcribing
-        // Rebuild transcriber if model changed
         let activeTranscriber = ensureActiveTranscriber()
         do {
             let transcribeStart = Date()
@@ -345,18 +303,15 @@ final class DictationEngine: ObservableObject {
             guard !raw.isEmpty else {
                 debugLog("[holdtotalk] (no speech detected)")
                 state = .idle
-                // Fix #10: clear stale target info on early return
                 recordingTargetAppPID = nil
                 recordingTargetBundleID = nil
                 return
             }
-            lastError = nil  // clear any previous error on success
+            lastError = nil
             lastRawText = raw
             debugLogSensitive("[holdtotalk] Raw", text: raw)
 
             var finalText = raw
-            // Only enter .cleaning state when Apple Intelligence is actually available;
-            // otherwise cleanup() is a no-op and the state flash is misleading.
             if cleanupEnabled && TextProcessor.isAvailable {
                 state = .cleaning
                 do {
@@ -371,17 +326,10 @@ final class DictationEngine: ObservableObject {
             }
             lastCleanText = finalText
 
-            // Reactivate the target app and give it a brief moment to focus.
-            // 80ms is sufficient for app activation; reduced from 180ms for snappier feel.
             reactivateRecordingTargetAppIfNeeded()
             try? await Task.sleep(nanoseconds: 80_000_000)
-            // Capture target info into locals before the async gap so the stored properties
-            // can be cleared at the end of this function without a race.
             let insertText = finalText + " "
             let insertBundleID = recordingTargetBundleID
-            // TextInserter.insert() is synchronous and may call usleep() per character in typing
-            // profiles (e.g. 2ms × 3000 chars ≈ 6s for long dictation in Cursor/Slack/VSCode).
-            // Run it off the main actor so the HUD and all animations remain responsive.
             let report = await Task.detached(priority: .userInitiated) {
                 TextInserter.insert(
                     insertText,
@@ -414,12 +362,8 @@ final class DictationEngine: ObservableObject {
     }
 
     private func ensureActiveTranscriber() -> Transcriber {
-        if transcriber?.modelSize != whisperModel {
-            transcriberWarmupTask?.cancel()
-            transcriberWarmupTask = nil
-            activeWarmupKey = nil
-            completedWarmupKey = nil
-            transcriber = Transcriber(modelSize: whisperModel)
+        if transcriber == nil {
+            transcriber = Transcriber()
         }
         return transcriber!
     }
@@ -428,12 +372,7 @@ final class DictationEngine: ObservableObject {
         TranscriptionProfile(rawValue: transcriptionProfile) ?? .balanced
     }
 
-    private func makeWarmupKey(modelSize: String, profile: TranscriptionProfile) -> String {
-        "\(modelSize)|\(profile.rawValue)"
-    }
-
     /// Polls until PostEvent (keyboard access) is granted so the UI updates live.
-    /// Fix #14: stored so stop() can cancel it; uses try await (not try?) so it respects cancellation.
     private func pollPostEventPermission() {
         axPollTask = Task { @MainActor in
             do {
@@ -441,7 +380,7 @@ final class DictationEngine: ObservableObject {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
                 }
             } catch {
-                return  // Task was cancelled — exit cleanly
+                return
             }
             hasPostEvent = true
             print("[holdtotalk] PostEvent (keyboard access) permission granted.")
@@ -456,7 +395,6 @@ final class DictationEngine: ObservableObject {
     }
 
     /// Reads current macOS permission state into the engine's published properties.
-    /// Internal so views can call this directly instead of duplicating the logic.
     func refreshPermissionSnapshot() {
         #if DEBUG
         if DebugFlags.skipPermissions {
@@ -469,5 +407,17 @@ final class DictationEngine: ObservableObject {
         hasMicrophone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         hasPostEvent = checkPostEventAccess()
         hasInputMonitoring = CGPreflightListenEventAccess()
+    }
+
+    // MARK: - Legacy Migration
+
+    private func migrateLegacyWhisperKit() {
+        let defaults = UserDefaults.standard
+        // Clear legacy whisperModel key
+        if defaults.string(forKey: whisperModelDefaultsKey) != nil {
+            defaults.removeObject(forKey: whisperModelDefaultsKey)
+        }
+        // Clean up old WhisperKit model files
+        modelManager.cleanupLegacyWhisperKitModels()
     }
 }

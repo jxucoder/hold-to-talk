@@ -121,35 +121,41 @@ enum TextInserter {
     }
 
     private static func profile(for bundleID: String) -> Profile {
-        // Electron/web editors accept native key events.
-        let typingFirstPrefixes = [
+        // Electron apps duplicate text when receiving unicode chunks — use clipboard paste.
+        let electronPrefixes = [
             "com.cursor.",
             "com.todesktop.",
             "com.microsoft.VSCode",
             "com.tinyspeck.slackmacgap",
             "notion.id",
             "md.obsidian",
-            "com.brave.Browser",
-            "org.mozilla.firefox",
         ]
-        if typingFirstPrefixes.contains(where: { bundleID.hasPrefix($0) }) {
+        if electronPrefixes.contains(where: { bundleID.hasPrefix($0) }) {
             return Profile(
-                name: "typing-first",
-                order: [.unicodeChunked, .keycodeTyping, .syntheticTyping, .clipboardPaste],
-                passes: 2,
-                typingCharDelayMicros: 2_000
+                name: "electron-paste",
+                order: [.clipboardPaste, .unicodeChunked, .syntheticTyping],
+                passes: 1,
+                typingCharDelayMicros: 4_000
             )
         }
 
-        if bundleID.hasPrefix("com.google.Chrome") {
+        // Browsers: clipboard paste first, then fall back to typing.
+        let browserPrefixes = [
+            "com.google.Chrome",
+            "com.brave.Browser",
+            "org.mozilla.firefox",
+            "com.apple.Safari",
+        ]
+        if browserPrefixes.contains(where: { bundleID.hasPrefix($0) }) {
             return Profile(
-                name: "chrome-native",
-                order: [.unicodeChunked, .keycodeTyping, .syntheticTyping, .clipboardPaste],
-                passes: 2,
+                name: "browser-paste",
+                order: [.clipboardPaste, .unicodeChunked, .syntheticTyping],
+                passes: 1,
                 typingCharDelayMicros: 5_000
             )
         }
 
+        // Native macOS apps: unicode chunks work reliably.
         return Profile(
             name: "default",
             order: [.unicodeChunked, .keycodeTyping, .syntheticTyping, .clipboardPaste],
@@ -228,19 +234,27 @@ enum TextInserter {
             usleep(max(charDelayMicros, 3_000))
         }
 
+        // Use virtual key 0 (kVK_ANSI_A) instead of 0x31 (space bar) as the carrier key.
+        // Electron apps can interpret the space bar keypress independently of the unicode
+        // payload, causing duplicate text insertion for later chunks.
+        let carrierKey: CGKeyCode = 0
+
         var index = 0
         while index < utf16.count {
             let end = min(index + chunkSize, utf16.count)
             var chunk = Array(utf16[index..<end])
 
-            // Espanso-style: unicode payload on keyDown only, explicit keyUp separately.
-            guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x31, keyDown: true),
-                  let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x31, keyDown: false) else {
+            guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: carrierKey, keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: source, virtualKey: carrierKey, keyDown: false) else {
                 return false
             }
+            // Unicode payload on keyDown only.
             keyDown.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: &chunk)
+            // Clear unicode on keyUp so the app doesn't re-process the payload on key release.
+            var empty: [UniChar] = []
+            keyUp.keyboardSetUnicodeString(stringLength: 0, unicodeString: &empty)
             postKeyEvent(keyDown)
-            usleep(max(charDelayMicros, 3_000))
+            usleep(max(charDelayMicros, 4_000))
             postKeyEvent(keyUp)
 
             if charDelayMicros > 0 {

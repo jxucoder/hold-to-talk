@@ -1,270 +1,180 @@
 import Foundation
-import WhisperKit
 
-struct WhisperModelInfo: Identifiable {
-    let id: String
-    let displayName: String
-    let sizeLabel: String
-    let englishOnly: Bool
+struct SpeechModelInfo {
+    static let id = "parakeet-tdt-0.6b-v2-int8"
+    static let displayName = "Parakeet TDT 0.6B"
+    static let sizeLabel = "~640 MB"
+    static let englishOnly = true
+    static let languageSummary = "English only"
 
-    static let downloadRepositoryName = "argmaxinc/whisperkit-coreml"
-    static let downloadRepositoryURL = URL(string: "https://huggingface.co/argmaxinc/whisperkit-coreml")!
-    static let whisperKitURL = URL(string: "https://github.com/argmaxinc/WhisperKit")!
-    static let openAIWhisperURL = URL(string: "https://github.com/openai/whisper")!
-    static let distilWhisperURL = URL(string: "https://huggingface.co/distil-whisper/distil-large-v3")!
+    static let downloadURL = URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2")!
+    static let modelDirectoryName = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
+    static let markerFile = "tokens.txt"
 
-    static let defaultModelID = "large-v3_turbo"
-    static let repoPrefixes = ["openai_whisper-", "distil-whisper_"]
+    static let parakeetURL = URL(string: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2")!
+    static let sherpaOnnxURL = URL(string: "https://github.com/k2-fsa/sherpa-onnx")!
+    static let nvidiaURL = URL(string: "https://www.nvidia.com/en-us/ai-data-science/products/nemo/")!
 
-    var isDistilled: Bool {
-        id.hasPrefix("distil-")
-    }
-
-    var languageSummary: String {
-        englishOnly ? "English only" : "Multilingual"
-    }
-
-    var familyDisplayName: String {
-        isDistilled ? "Distil-Whisper" : "OpenAI Whisper"
-    }
-
-    var familyURL: URL {
-        isDistilled ? Self.distilWhisperURL : Self.openAIWhisperURL
-    }
-
-    var repoFolderName: String {
-        let prefix = isDistilled ? "distil-whisper_" : "openai_whisper-"
-        return prefix + id
-    }
-
-    var downloadURL: URL {
-        URL(string: "https://huggingface.co/\(Self.downloadRepositoryName)/tree/main/\(repoFolderName)")!
-    }
-
-    var trustSummary: String {
-        let familySummary: String
-        if isDistilled {
-            familySummary = "a distilled Whisper variant optimized for a smaller download"
-        } else {
-            familySummary = "an OpenAI Whisper model converted for Core ML"
-        }
-        return "Runs fully on your Mac after download. Hold to Talk downloads \(familySummary) from Argmax's WhisperKit model repository on Hugging Face."
-    }
-
-    /// Maps legacy IDs to WhisperKit-compatible variant names.
-    static func normalizeModelID(_ id: String) -> String {
-        switch id {
-        case "large-v3-turbo":
-            return "large-v3_turbo"
-        case "distil-large-v3-turbo":
-            return "distil-large-v3_turbo"
-        default:
-            return id
-        }
-    }
-
-    /// Normalizes downloaded folder variants (e.g. strips "_954MB" suffix).
-    static func normalizeDownloadedVariant(_ id: String) -> String {
-        let normalized = normalizeModelID(id)
-        return normalized.replacingOccurrences(
-            of: "_[0-9]+MB$",
-            with: "",
-            options: .regularExpression
-        )
-    }
-
-    /// Converts a WhisperKit repo folder name into an app model ID.
-    static func modelID(fromRepoFolderName folderName: String) -> String? {
-        for prefix in repoPrefixes where folderName.hasPrefix(prefix) {
-            let suffix = String(folderName.dropFirst(prefix.count))
-            return normalizeDownloadedVariant(suffix)
-        }
-        return nil
-    }
-
-    /// Converts WhisperKit support strings into app model IDs.
-    static func modelID(fromSupportEntry rawEntry: String) -> String? {
-        let entry = rawEntry.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !entry.isEmpty else { return nil }
-        return modelID(fromRepoFolderName: entry) ?? normalizeDownloadedVariant(entry)
-    }
-
-    /// Returns a device-aware model profile based on WhisperKit's support matrix.
-    static func deviceModelProfile() -> (available: [WhisperModelInfo], recommendedID: String) {
-        let support = WhisperKit.recommendedModels()
-        let supportedIDs = Set(support.supported.compactMap(modelID(fromSupportEntry:)))
-
-        let available = all.filter { supportedIDs.contains($0.id) }
-        let resolvedAvailable = available.isEmpty ? all : available
-        let availableIDs = Set(resolvedAvailable.map(\.id))
-
-        let recommendedFromSupport = modelID(fromSupportEntry: support.default)
-        if let recommendedFromSupport, availableIDs.contains(recommendedFromSupport) {
-            return (resolvedAvailable, recommendedFromSupport)
-        }
-        if availableIDs.contains(defaultModelID) {
-            return (resolvedAvailable, defaultModelID)
-        }
-        if availableIDs.contains("small.en") {
-            return (resolvedAvailable, "small.en")
-        }
-        return (resolvedAvailable, resolvedAvailable.first?.id ?? defaultModelID)
-    }
-
-    static let all: [WhisperModelInfo] = [
-        .init(id: "tiny.en",         displayName: "Tiny (English)",   sizeLabel: "~75 MB",   englishOnly: true),
-        .init(id: "tiny",            displayName: "Tiny",             sizeLabel: "~75 MB",   englishOnly: false),
-        .init(id: "base.en",         displayName: "Base (English)",   sizeLabel: "~140 MB",  englishOnly: true),
-        .init(id: "base",            displayName: "Base",             sizeLabel: "~140 MB",  englishOnly: false),
-        .init(id: "small.en",        displayName: "Small (English)",  sizeLabel: "~460 MB",  englishOnly: true),
-        .init(id: "small",           displayName: "Small",            sizeLabel: "~460 MB",  englishOnly: false),
-        .init(id: "medium",          displayName: "Medium",           sizeLabel: "~1.5 GB",  englishOnly: false),
-        .init(id: "medium.en",       displayName: "Medium (English)", sizeLabel: "~1.5 GB",  englishOnly: true),
-        .init(id: "distil-large-v3", displayName: "Distil Large V3 (English only)", sizeLabel: "~595 MB", englishOnly: true),
-        .init(id: "distil-large-v3_turbo", displayName: "Distil Large V3 Turbo (English only)", sizeLabel: "~600 MB", englishOnly: true),
-        .init(id: "large-v3_turbo",  displayName: "Large V3 Turbo",  sizeLabel: "~1.6 GB",  englishOnly: false),
-        .init(id: "large-v3-v20240930", displayName: "Large V3 (20240930)", sizeLabel: "~626 MB", englishOnly: false),
-        .init(id: "large-v3-v20240930_turbo", displayName: "Large V3 (20240930 Turbo)", sizeLabel: "~632 MB", englishOnly: false),
-        .init(id: "large-v3",        displayName: "Large V3",        sizeLabel: "~3 GB",    englishOnly: false),
-    ]
+    static let trustSummary = "Runs fully on your Mac after download. Hold to Talk downloads NVIDIA's Parakeet TDT 0.6B model (int8 quantized) from the sherpa-onnx GitHub releases. The model is open-source (Apache 2.0) and English-only."
 }
 
 @MainActor
 final class ModelManager: ObservableObject {
-    @Published var downloadProgress: [String: Double] = [:]
-    @Published var downloading: Set<String> = []
-    @Published var downloaded: Set<String> = []
-    @Published var downloadErrors: [String: String] = [:]
+    @Published var downloadProgress: Double = 0
+    @Published var isDownloading: Bool = false
+    @Published var isDownloaded: Bool = false
+    @Published var downloadError: String?
 
-    // Fix #3: track live download tasks so cancelDownload() actually stops them
-    private var downloadTasks: [String: Task<Void, Never>] = [:]
+    private var downloadTask: Task<Void, Never>?
 
-    static let modelBase: URL = {
+    nonisolated static let modelBase: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("HoldToTalk/models")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
 
+    var modelDirectory: URL {
+        Self.modelBase.appendingPathComponent(SpeechModelInfo.modelDirectoryName)
+    }
+
     init() {
         refreshDownloadStatus()
     }
 
-    private var repoURL: URL {
-        Self.modelBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml")
-    }
-
-    private func modelFolders(matching modelId: String) -> [URL] {
-        let normalizedID = WhisperModelInfo.normalizeModelID(modelId)
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: repoURL,
-            includingPropertiesForKeys: nil
-        ) else {
-            return []
-        }
-
-        return contents.filter { dir in
-            let name = dir.lastPathComponent
-            guard let resolvedID = WhisperModelInfo.modelID(fromRepoFolderName: name) else { return false }
-            return resolvedID == normalizedID
-        }
-    }
-
     func refreshDownloadStatus() {
-        var found = Set<String>()
-
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: repoURL, includingPropertiesForKeys: nil
-        ) else {
-            downloaded = found
-            return
-        }
-
-        for dir in contents {
-            let name = dir.lastPathComponent
-            let melSpec = dir.appendingPathComponent("MelSpectrogram.mlmodelc")
-            guard FileManager.default.fileExists(atPath: melSpec.path) else { continue }
-
-            if let modelId = WhisperModelInfo.modelID(fromRepoFolderName: name) {
-                found.insert(modelId)
-            }
-        }
-        downloaded = found
+        let marker = modelDirectory.appendingPathComponent(SpeechModelInfo.markerFile)
+        isDownloaded = FileManager.default.fileExists(atPath: marker.path)
     }
 
     func handleFreshOnboardingReset() {
-        for task in downloadTasks.values {
-            task.cancel()
-        }
-        downloadTasks.removeAll()
-        downloading.removeAll()
-        downloadProgress.removeAll()
-        downloadErrors.removeAll()
+        downloadTask?.cancel()
+        downloadTask = nil
+        isDownloading = false
+        downloadProgress = 0
+        downloadError = nil
         refreshDownloadStatus()
     }
 
-    // Fix #3: non-async; spawns a tracked task internally so it can be cancelled
-    func download(_ modelId: String) {
-        // Normalize up-front so all state keys (downloading, downloaded, downloadProgress, etc.)
-        // are stored under the canonical ID, avoiding raw-vs-normalized mismatches.
-        let modelId = WhisperModelInfo.normalizeModelID(modelId)
-        guard !downloading.contains(modelId) else { return }
-        downloading.insert(modelId)
-        downloadProgress[modelId] = 0
-        downloadErrors.removeValue(forKey: modelId)
+    func download() {
+        guard !isDownloading else { return }
+        isDownloading = true
+        downloadProgress = 0
+        downloadError = nil
 
         let task = Task { [weak self] in
             guard let self else { return }
             do {
-                _ = try await WhisperKit.download(
-                    variant: modelId,   // already normalized
-                    downloadBase: Self.modelBase
-                ) { [weak self] progress in
-                    Task { @MainActor [weak self] in
-                        self?.downloadProgress[modelId] = progress.fractionCompleted
-                    }
-                }
+                let tempFileURL = try await self.downloadArchive()
+                if Task.isCancelled { return }
+                try await self.extractArchive(tempFileURL)
                 if !Task.isCancelled {
-                    await MainActor.run { _ = self.downloaded.insert(modelId) }
+                    await MainActor.run { self.isDownloaded = true }
                 }
             } catch {
                 if !Task.isCancelled {
                     await MainActor.run {
-                        self.downloadErrors[modelId] = self.userFacingDownloadError(error)
+                        self.downloadError = self.userFacingDownloadError(error)
                     }
-                    print("[modelmanager] Download failed for \(modelId): \(error)")
+                    print("[modelmanager] Download failed: \(error)")
                 }
             }
             await MainActor.run {
-                self.downloading.remove(modelId)
-                self.downloadProgress.removeValue(forKey: modelId)
-                self.downloadTasks.removeValue(forKey: modelId)
+                self.isDownloading = false
+                self.downloadProgress = 0
+                self.downloadTask = nil
             }
         }
-        downloadTasks[modelId] = task
+        downloadTask = task
     }
 
-    func cancelDownload(_ modelId: String) {
-        // Fix #3: actually cancel the running Task, not just clear UI state
-        downloadTasks[modelId]?.cancel()
-        downloadTasks.removeValue(forKey: modelId)
-        downloading.remove(modelId)
-        downloadProgress.removeValue(forKey: modelId)
+    func cancelDownload() {
+        downloadTask?.cancel()
+        downloadTask = nil
+        isDownloading = false
+        downloadProgress = 0
     }
 
-    func delete(_ modelId: String) {
-        let folders = modelFolders(matching: modelId)
-        for folder in folders {
-            try? FileManager.default.removeItem(at: folder)
+    func deleteModel() {
+        let dir = modelDirectory
+        if FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.removeItem(at: dir)
         }
-        downloaded.remove(WhisperModelInfo.normalizeModelID(modelId))
+        isDownloaded = false
     }
 
-    func diskSize(for modelId: String) -> String? {
-        let folders = modelFolders(matching: modelId)
-        guard !folders.isEmpty else { return nil }
-        let total = folders.compactMap(directorySize).reduce(0, +)
+    func diskSize() -> String? {
+        let dir = modelDirectory
+        guard FileManager.default.fileExists(atPath: dir.path) else { return nil }
+        guard let total = directorySize(dir) else { return nil }
         return ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file)
+    }
+
+    /// Deletes legacy WhisperKit model directories if they exist.
+    func cleanupLegacyWhisperKitModels() {
+        let legacyRepo = Self.modelBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml")
+        if FileManager.default.fileExists(atPath: legacyRepo.path) {
+            try? FileManager.default.removeItem(at: legacyRepo)
+            print("[modelmanager] Cleaned up legacy WhisperKit models directory.")
+        }
+        // Also clean the parent "models/argmaxinc" directory if empty
+        let argmaxDir = Self.modelBase.appendingPathComponent("models/argmaxinc")
+        if FileManager.default.fileExists(atPath: argmaxDir.path) {
+            let contents = try? FileManager.default.contentsOfDirectory(atPath: argmaxDir.path)
+            if contents?.isEmpty ?? true {
+                try? FileManager.default.removeItem(at: argmaxDir)
+            }
+        }
+        let modelsDir = Self.modelBase.appendingPathComponent("models")
+        if FileManager.default.fileExists(atPath: modelsDir.path) {
+            let contents = try? FileManager.default.contentsOfDirectory(atPath: modelsDir.path)
+            if contents?.isEmpty ?? true {
+                try? FileManager.default.removeItem(at: modelsDir)
+            }
+        }
+    }
+
+    // MARK: - Private
+
+    private func downloadArchive() async throws -> URL {
+        let (tempURL, _) = try await URLSession.shared.download(
+            from: SpeechModelInfo.downloadURL,
+            delegate: DownloadProgressDelegate { [weak self] fraction in
+                Task { @MainActor [weak self] in
+                    self?.downloadProgress = fraction
+                }
+            }
+        )
+        return tempURL
+    }
+
+    private func extractArchive(_ archiveURL: URL) async throws {
+        try await Task.detached(priority: .utility) {
+            let fm = FileManager.default
+            let destParent = Self.modelBase
+
+            // Ensure destination parent exists
+            try fm.createDirectory(at: destParent, withIntermediateDirectories: true)
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+            process.arguments = ["-xjf", archiveURL.path, "-C", destParent.path]
+
+            let pipe = Pipe()
+            process.standardError = pipe
+
+            try process.run()
+            process.waitUntilExit()
+
+            // Clean up temp archive
+            try? fm.removeItem(at: archiveURL)
+
+            guard process.terminationStatus == 0 else {
+                let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
+                let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown extraction error"
+                throw ModelExtractionError.extractionFailed(errorMessage)
+            }
+        }.value
     }
 
     private func directorySize(_ url: URL) -> UInt64? {
@@ -287,11 +197,6 @@ final class ModelManager: ObservableObject {
         let message = error.localizedDescription
         let lower = message.lowercased()
 
-        if lower.contains("no models found matching")
-            || lower.contains("models are unavailable")
-            || lower.contains("models unavailable") {
-            return "Model variant unavailable. Choose another model or switch to the recommended model for this Mac."
-        }
         if lower.contains("timed out")
             || lower.contains("network connection was lost")
             || lower.contains("internet")
@@ -299,6 +204,52 @@ final class ModelManager: ObservableObject {
             return "Download failed due to a network issue. Check your connection and try again."
         }
 
+        if error is ModelExtractionError {
+            return "Failed to extract the model archive. Try deleting and re-downloading."
+        }
+
         return message
+    }
+}
+
+enum ModelExtractionError: LocalizedError {
+    case extractionFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .extractionFailed(let message):
+            return "Model extraction failed: \(message)"
+        }
+    }
+}
+
+// MARK: - Download Progress Delegate
+
+final class DownloadProgressDelegate: NSObject, URLSessionTaskDelegate, Sendable {
+    private let handler: @Sendable (Double) -> Void
+
+    init(handler: @escaping @Sendable (Double) -> Void) {
+        self.handler = handler
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didSendBodyData bytesSent: Int64,
+        totalBytesSent: Int64,
+        totalBytesExpectedToSend: Int64
+    ) {
+        // This delegate method is for uploads, not downloads
+    }
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        didCreateTask task: URLSessionTask
+    ) {
+        // Monitor download progress via observation
+        let observation = task.progress.observe(\.fractionCompleted) { [handler] progress, _ in
+            handler(progress.fractionCompleted)
+        }
+        objc_setAssociatedObject(task, "progressObservation", observation, .OBJC_ASSOCIATION_RETAIN)
     }
 }
