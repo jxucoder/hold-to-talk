@@ -4,7 +4,7 @@
 
 # Hold to Talk
 
-Free, open-source voice dictation for macOS. Hold a key, speak, release — your words appear wherever your cursor is. Your audio stays local and safe on your Mac.
+Free, open-source voice dictation for macOS. Hold a key, speak, release -- your words appear wherever your cursor is. Everything runs locally on your Mac.
 
 <p align="center">
   <a href="https://jxucoder.github.io/hold-to-talk/demo.mp4">
@@ -18,21 +18,21 @@ Free, open-source voice dictation for macOS. Hold a key, speak, release — your
   <a href="https://jxucoder.github.io/hold-to-talk/demo.mp4">Watch the demo video</a>
 </p>
 
-- **Free and open-source** — no subscription, no paywall, no black box. Inspect the code, build it yourself, or install a signed release.
-- **Local and safe** — powered by [WhisperKit](https://github.com/argmaxinc/WhisperKit), transcription runs entirely on Apple Silicon via Core ML. No cloud upload, no accounts, no in-app tracking.
-- **Fast on-device AI** — optimized for low-latency dictation with high-performance on-device speech models, plus optional Apple Intelligence cleanup when available.
-- **Works everywhere** — dictate into any app: Slack, Notes, your IDE, email, browser — anywhere you can type.
-- **Apple Intelligence cleanup** (optional) — on-device grammar and filler-word removal with a customizable prompt. Requires macOS 26+.
-- **Auto-updates** — direct downloads update in-app via [Sparkle](https://sparkle-project.org).
-- **Stays out of your way** — lives in your menu bar. Hold a key to record, release to paste. That's it.
+- **Free and open-source** -- no subscription, no paywall. Inspect the code, build it yourself, or install a signed release.
+- **Local and private** -- powered by [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) + [NVIDIA Parakeet TDT 0.6B](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2). No cloud APIs, no accounts, no tracking.
+- **Fast** -- optimized for low-latency dictation with an int8-quantized on-device speech model.
+- **Works everywhere** -- dictate into any app: Slack, Notes, your IDE, email, browser.
+- **Apple Intelligence cleanup** (optional) -- on-device grammar and filler-word removal. Requires macOS 26+.
+- **Auto-updates** -- direct downloads update in-app via [Sparkle](https://sparkle-project.org).
+- **Stays out of your way** -- lives in your menu bar. Hold a key to record, release to paste.
 
 ## Install
 
 **Requirements:** macOS 15+, Apple Silicon.
 
-### Download pre-built binary
+### Download
 
-Grab the latest notarized `DMG` or `ZIP` from [GitHub Releases](https://github.com/jxucoder/hold-to-talk/releases), install `Hold To Talk.app` into `/Applications`, and open it.
+Grab the latest notarized `DMG` or `ZIP` from [GitHub Releases](https://github.com/jxucoder/hold-to-talk/releases), install into `/Applications`, and open.
 
 ### Homebrew
 
@@ -42,11 +42,11 @@ brew install jxucoder/tap/holdtotalk
 
 ### First launch
 
-On first launch, Hold to Talk will guide you through:
+On first launch, Hold to Talk guides you through:
 
-1. Granting **Microphone**, **Accessibility**, and **Input Monitoring**
-2. Downloading the speech recognition model
-3. Warming up the model; the first transcription after launch may be slightly slower
+1. Granting **Microphone**, **Accessibility**, and **Input Monitoring** permissions
+2. Downloading the Parakeet TDT speech model (~640 MB, one-time)
+3. Choosing your hotkey
 
 ### Build from source
 
@@ -55,108 +55,68 @@ Requires Xcode command line tools.
 ```bash
 git clone https://github.com/jxucoder/hold-to-talk.git
 cd hold-to-talk
-make build
-make install   # installs "Hold To Talk.app" to /Applications
-make run
+make build          # downloads sherpa-onnx, builds release, assembles .app
+make install        # copies to /Applications
+make run            # debug build + run
 
-# Clean uninstall + reset local Hold To Talk state + reset permissions for first-run testing
-make test-reset
+make test-reset     # full uninstall + reset all state + reset permissions
 ```
-
-Or open `Package.swift` in Xcode and run.
-
-### Packaging (signed release)
-
-```bash
-# Local packaging (ad-hoc signed): creates dist/HoldToTalk-v<version>.zip + .dmg
-make package
-
-# Permission-testing DMG (stable signature required for Accessibility/Input Monitoring)
-SIGNING_IDENTITY="Developer ID Application: <Your Name> (<TEAMID>)" \
-make package-permission-test-dmg
-
-# Production release (Developer ID + notarization + stapling): creates notarized zip + dmg
-SIGNING_IDENTITY="Developer ID Application: <Your Name> (<TEAMID>)" \
-APPLE_ID="<apple-id-email>" \
-APPLE_TEAM_ID="<team-id>" \
-APPLE_APP_PASSWORD="<app-specific-password>" \
-make release
-```
-
-Ad-hoc signed builds are fine for local iteration, but they are not reliable for macOS
-Accessibility/Input Monitoring permission testing across rebuilds because TCC can treat
-each rebuild as a different app identity.
-
-All reset-related `make` targets route through `scripts/reset-fresh-test.sh` so cleanup
-logic stays in one place. For clean first-run onboarding tests, prefer `make test-reset`.
-`make permissions-reset` runs the same script in permissions-only mode and keeps the app
-plus local HoldToTalk state in place.
 
 ## Usage
 
-1. Launch — appears in menu bar as a mic icon
+1. Launch -- appears in menu bar as a mic icon
 2. Hold **Ctrl** (default) to record
-3. Release to transcribe and paste into the active window
-4. Click the menu bar icon for status, last transcription, and settings
+3. Release to transcribe and insert into the active window
+4. Click the menu bar icon for status and settings
 
 ### Settings
 
-Open via menu bar → Settings:
-
 | Setting | Default | Options |
 |---|---|---|
-| Launch at Login | off | Toggle on/off |
-| Transcription profile | `balanced` | `fast`, `balanced`, `best` |
-| Whisper model | device-recommended | `tiny.en`, `tiny`, `base.en`, `base`, `small.en`, `small`, `medium.en`, `medium`, `distil-large-v3`, `distil-large-v3_turbo`, `large-v3_turbo`, `large-v3-v20240930`, `large-v3-v20240930_turbo`, `large-v3` |
 | Hotkey | Control | Control, Option, Shift, Right Option |
-| Cleanup | on | Toggle on/off — uses Apple Intelligence (macOS 26+) |
-| Cleanup prompt | (default) | Customizable instructions for how Apple Intelligence cleans up transcriptions |
-| Diagnostic logging | off | Toggle on/off — local troubleshooting logs only; transcript text is redacted by default |
+| Transcription profile | Balanced | Fast, Balanced, Best |
+| Text cleanup | On (if available) | On/Off -- Apple Intelligence, macOS 26+ |
+| Cleanup prompt | (default) | Customizable instructions |
+| Launch at Login | Off | On/Off |
+| Diagnostic logging | Off | On/Off -- local only, transcript text redacted |
 
 ## Architecture
 
 ```
-HoldToTalkApp          SwiftUI menu bar app, entry point
-DictationEngine        Orchestrator: record → transcribe → cleanup → paste
-AudioRecorder          AVAudioEngine mic capture, resamples to 16 kHz mono
-Transcriber            WhisperKit wrapper, lazy model loading
-TextProcessor          On-device text cleanup via Apple Intelligence
-TextInserter           Multi-strategy text insertion (Accessibility API, keyboard events, clipboard)
-HotkeyManager          NSEvent global/local monitor for modifier keys
-ModelManager           Whisper model download and lifecycle management
-RecordingHUD           Floating overlay showing recording state
-OnboardingView         Guided setup flow for first launch
-SettingsView           SwiftUI settings form
+HoldToTalkApp       SwiftUI menu bar app, entry point
+DictationEngine     Orchestrator: record -> transcribe -> cleanup -> insert
+AudioRecorder       AVAudioEngine mic capture, resamples to 16 kHz mono
+Transcriber         sherpa-onnx offline recognizer + Silero VAD segmentation
+TextCleanup         Optional on-device cleanup via Apple Intelligence (macOS 26+)
+TextInserter        CGEvent unicode insertion or clipboard paste (per-app strategy)
+HotkeyManager       NSEvent global/local monitor for modifier keys
+ModelManager        Parakeet TDT model download and lifecycle
+RecordingHUD        Floating overlay with live waveform during recording
+OnboardingView      Guided setup: permissions, model download, hotkey test
+SettingsView        SwiftUI settings form
 ```
 
-Dependencies: [WhisperKit](https://github.com/argmaxinc/WhisperKit) (transcription) and [Sparkle](https://sparkle-project.org) (auto-updates). Transcription runs locally with on-device AI models, and Apple Intelligence cleanup is optional and on-device as well.
+Dependencies: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (speech recognition), [Sparkle](https://sparkle-project.org) (auto-updates, excluded from App Store builds).
 
 ## Permissions
 
 macOS will prompt for:
-- **Microphone** — required for recording
-- **Accessibility** — required for text insertion and focused-app interaction
-- **Input Monitoring** — required for reliable global hotkey detection
-
-Detailed guide: [Permission System Notes](docs/permissions.md)
+- **Microphone** -- recording audio
+- **Accessibility** (Keyboard Access) -- inserting text into apps
+- **Input Monitoring** -- detecting the global hotkey
 
 ## Notes
 
-- Secure text fields such as password inputs are intentionally blocked; Hold to Talk will not paste into protected fields.
-- Direct downloads support in-app updates through Sparkle. App Store builds use App Store distribution instead.
+- Secure text fields (password inputs) are intentionally blocked.
+- Direct downloads support in-app updates via Sparkle. App Store builds use App Store distribution.
 
 ## Contributing
 
-Contributions are welcome! Please open an issue to discuss larger changes before submitting a PR.
-
-1. Fork the repo
-2. Create a feature branch (`git checkout -b my-feature`)
-3. Commit your changes
-4. Open a pull request
+Contributions welcome. Please open an issue to discuss larger changes before submitting a PR.
 
 ## Privacy
 
-Hold to Talk runs entirely on your Mac — no cloud transcription service, no accounts, and no in-app tracking. Optional diagnostic logs stay local, are off by default, and redact transcript text by default. See the full [Privacy Policy](PRIVACY.md).
+Everything runs on your Mac. No cloud transcription, no accounts, no tracking. Diagnostic logs are off by default, local only, and redact transcript text. See [Privacy Policy](PRIVACY.md).
 
 ## License
 
