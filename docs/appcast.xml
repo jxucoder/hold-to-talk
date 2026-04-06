@@ -5,19 +5,11 @@
     <link>https://jxucoder.github.io/holdtotalk/appcast.xml</link>
     <item>
       <title>Version 2.0.5</title>
-      <pubDate>Sun, 06 Apr 2026 00:00:00 +0000</pubDate>
+      <pubDate>Mon, 06 Apr 2026 03:06:46 +0000</pubDate>
       <sparkle:version>2.0.5</sparkle:version>
       <sparkle:shortVersionString>2.0.5</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/jxucoder/hold-to-talk/releases/download/v2.0.5/HoldToTalk-v2.0.5.zip" length="0" type="application/octet-stream" sparkle:edSignature="" />
-    </item>
-    <item>
-      <title>Version 2.0.4</title>
-      <pubDate>Mon, 06 Apr 2026 01:43:22 +0000</pubDate>
-      <sparkle:version>2.0.4</sparkle:version>
-      <sparkle:shortVersionString>2.0.4</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/jxucoder/hold-to-talk/releases/download/v2.0.4/HoldToTalk-v2.0.4.zip" length="10548911" type="application/octet-stream" sparkle:edSignature="CRtvQfR8YJnyO7VegonSoV4wry5lOrfwZPvS0xKJruTZA2owkR/sTOe81ivabI6zXaW22/0Uxe7UDFftxZCcAg==" />
+      <enclosure url="https://github.com/jxucoder/hold-to-talk/releases/download/v2.0.5/HoldToTalk-v2.0.5.zip" length="10552824" type="application/octet-stream" sparkle:edSignature="L48lIQMYFGuKYUlCPq3qbyZlb6buZ84qvPfBfJ9RFYT/fifCIciHybd6tmh5CkZbmDQMdJzMkQdOZkJfRDDHCQ==" />
     </item>
   </channel>
 </rss>
