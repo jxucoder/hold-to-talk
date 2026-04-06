@@ -93,6 +93,8 @@ final class RecordingHUD {
         let hosting = NSHostingView(rootView: HUDContentView(model: model))
         hosting.frame = NSRect(origin: .zero, size: Self.size)
         hosting.autoresizingMask = [.width, .height]
+        hosting.wantsLayer = true
+        hosting.layer?.backgroundColor = .clear
         p.contentView = hosting
 
         panel = p
