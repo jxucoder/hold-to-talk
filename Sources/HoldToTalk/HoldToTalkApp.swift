@@ -17,13 +17,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             clearDebugLog()
         }
 
-        // Re-register login item to replace stale entries from previous app versions.
-        // SMAppService tracks registrations by code signature, so each update creates
-        // a new entry unless we unregister the old one first.
-        if SMAppService.mainApp.status == .enabled {
-            try? SMAppService.mainApp.unregister()
-            try? SMAppService.mainApp.register()
-        }
+        // Re-register login item so the current binary owns the entry.
+        // SMAppService tracks registrations by code signature; after a Sparkle
+        // update the old version's entry becomes a ghost that the new binary
+        // cannot manage.  We persist the user's intent in UserDefaults so we
+        // can always re-register on launch, even though SMAppService.mainApp.status
+        // returns .notRegistered for the fresh binary.
+        migrateAndReregisterLoginItem()
 
         if shouldOpenInitialOnboarding {
             pendingInitialOnboardingOpen = true
@@ -70,6 +70,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 errorAlert.alertStyle = .warning
                 errorAlert.runModal()
             }
+        }
+    }
+
+    /// Migrate existing SMAppService registrations to UserDefaults-tracked intent,
+    /// then unconditionally re-register so the current binary owns the login item.
+    private func migrateAndReregisterLoginItem() {
+        let defaults = UserDefaults.standard
+
+        // One-time migration: if the UserDefaults key doesn't exist yet,
+        // seed it from the current SMAppService status so existing users
+        // who enabled launch-at-login before this change keep it on.
+        if defaults.object(forKey: launchAtLoginDefaultsKey) == nil {
+            defaults.set(SMAppService.mainApp.status == .enabled, forKey: launchAtLoginDefaultsKey)
+        }
+
+        if defaults.bool(forKey: launchAtLoginDefaultsKey) {
+            try? SMAppService.mainApp.unregister()
+            try? SMAppService.mainApp.register()
+        } else {
+            // User doesn't want launch-at-login.  Clean up any ghost entry
+            // left behind by a previous version.
+            try? SMAppService.mainApp.unregister()
         }
     }
 

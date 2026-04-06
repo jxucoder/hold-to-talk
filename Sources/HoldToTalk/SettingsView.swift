@@ -8,7 +8,7 @@ struct SettingsView: View {
     var updater: (any AppUpdateDriver)? = nil
     @Environment(\.dismiss) private var dismiss
 
-    @State private var launchAtLogin: Bool = (SMAppService.mainApp.status == .enabled)
+    @State private var launchAtLogin: Bool = UserDefaults.standard.bool(forKey: launchAtLoginDefaultsKey)
     @State private var isRunningEnvironmentFix = false
     @State private var pendingFixInputMonitoring = false
     @State private var diagnosticsMessage: String?
@@ -70,6 +70,7 @@ struct SettingsView: View {
                             } else {
                                 try SMAppService.mainApp.unregister()
                             }
+                            UserDefaults.standard.set(enabled, forKey: launchAtLoginDefaultsKey)
                         } catch {
                             launchAtLogin = !enabled
                         }

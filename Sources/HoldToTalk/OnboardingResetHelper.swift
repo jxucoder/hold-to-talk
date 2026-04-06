@@ -12,6 +12,7 @@ let diagnosticLoggingEnabledDefaultsKey = "diagnosticLoggingEnabled"
 let textCleanupEnabledDefaultsKey = "textCleanupEnabled"
 let textCleanupPromptDefaultsKey = "textCleanupPrompt"
 let hotwordsDefaultsKey = "hotwords"
+let launchAtLoginDefaultsKey = "launchAtLogin"
 
 enum OnboardingLaunchPreparation: Equatable {
     case none
