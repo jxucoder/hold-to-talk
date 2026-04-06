@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import ServiceManagement
 #if canImport(Sparkle)
 import Sparkle
 #endif
@@ -14,6 +15,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             truncateDebugLogIfNeeded()
         } else {
             clearDebugLog()
+        }
+
+        // Re-register login item to replace stale entries from previous app versions.
+        // SMAppService tracks registrations by code signature, so each update creates
+        // a new entry unless we unregister the old one first.
+        if SMAppService.mainApp.status == .enabled {
+            try? SMAppService.mainApp.unregister()
+            try? SMAppService.mainApp.register()
         }
 
         if shouldOpenInitialOnboarding {
