@@ -34,6 +34,13 @@ final class ModelManager: ObservableObject {
         return dir
     }()
 
+    nonisolated static var isModelDownloaded: Bool {
+        let marker = modelBase
+            .appendingPathComponent(SpeechModelInfo.modelDirectoryName)
+            .appendingPathComponent(SpeechModelInfo.markerFile)
+        return FileManager.default.fileExists(atPath: marker.path)
+    }
+
     var modelDirectory: URL {
         Self.modelBase.appendingPathComponent(SpeechModelInfo.modelDirectoryName)
     }

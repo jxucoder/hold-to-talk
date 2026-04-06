@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 
 let onboardingCompleteDefaultsKey = "onboardingComplete"
@@ -50,7 +51,17 @@ func onboardingLaunchPreparation(
 
     let currentPath = normalizedAppBundlePath(currentAppURL)
     if let storedPath = defaults.string(forKey: onboardingCompletedAppPathDefaultsKey) {
-        return storedPath == currentPath ? .none : .reopenAfterAppMove
+        if storedPath == currentPath { return .none }
+
+        // App was moved or updated. If all permissions are still granted
+        // and the model is present, just update the stored path and skip
+        // onboarding entirely.
+        if allPermissionsGrantedAndModelReady() {
+            defaults.set(currentPath, forKey: onboardingCompletedAppPathDefaultsKey)
+            return .none
+        }
+
+        return .reopenAfterAppMove
     }
 
     // Existing installs from older builds should keep working without forcing onboarding again.
@@ -138,6 +149,13 @@ func resetPersistedAppStateForFreshOnboarding(
         guard fileManager.fileExists(atPath: cacheDirectory.path) else { continue }
         try? fileManager.removeItem(at: cacheDirectory)
     }
+}
+
+private func allPermissionsGrantedAndModelReady() -> Bool {
+    guard checkPostEventAccess() else { return false }
+    guard CGPreflightListenEventAccess() else { return false }
+    guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else { return false }
+    return ModelManager.isModelDownloaded
 }
 
 private func normalizedAppBundlePath(_ appURL: URL) -> String {
