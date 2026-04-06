@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="Resources/logo.png" width="128" alt="Hold to Talk logo">
+  <img src="Resources/logo.png" width="128" alt="Hold To Talk logo">
 </p>
 
-<h1 align="center">Hold to Talk</h1>
+<h1 align="center">Hold To Talk</h1>
 
 <p align="center">Free, open-source voice dictation for macOS. Hold a key, speak, release -- your words appear wherever your cursor is. Everything runs locally on your Mac.</p>
 
