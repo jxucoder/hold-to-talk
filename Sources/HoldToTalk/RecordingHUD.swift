@@ -8,6 +8,22 @@ private final class HUDPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+/// NSHostingView subclass that disables the default opaque background
+/// so the SwiftUI content composites correctly over the desktop.
+private final class TransparentHostingView<Content: View>: NSHostingView<Content> {
+    override var isOpaque: Bool { false }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // Belt-and-suspenders: ensure the backing layer is non-opaque
+        // after AppKit sets it up during window attachment.
+        if let layer {
+            layer.isOpaque = false
+            layer.backgroundColor = .clear
+        }
+    }
+}
+
 @MainActor
 private final class HUDModel: ObservableObject {
     @Published var state: DictationEngine.State = .idle
@@ -33,7 +49,9 @@ final class RecordingHUD {
 
     private var panel: HUDPanel?
     private let model = HUDModel()
-    private static let size = CGSize(width: 236, height: 60)
+    /// Extra inset around the capsule so the drop shadow is not clipped by the panel edge.
+    static let shadowInset: CGFloat = 20
+    private static let size = CGSize(width: 236 + shadowInset * 2, height: 60 + shadowInset * 2)
     /// True while an animateOut() is in flight; cleared on completion or when interrupted by a new show request.
     private var isAnimatingOut = false
 
@@ -90,11 +108,9 @@ final class RecordingHUD {
         p.isMovable = false
         p.isMovableByWindowBackground = false
 
-        let hosting = NSHostingView(rootView: HUDContentView(model: model))
+        let hosting = TransparentHostingView(rootView: HUDContentView(model: model))
         hosting.frame = NSRect(origin: .zero, size: Self.size)
         hosting.autoresizingMask = [.width, .height]
-        hosting.wantsLayer = true
-        hosting.layer?.backgroundColor = .clear
         p.contentView = hosting
 
         panel = p
@@ -109,7 +125,7 @@ final class RecordingHUD {
         let dockHeight = vf.minY - sf.minY
         return NSPoint(
             x: sf.midX - Self.size.width / 2,
-            y: sf.minY + dockHeight + 20
+            y: sf.minY + dockHeight + 20 - Self.shadowInset
         )
     }
 
@@ -196,6 +212,7 @@ private struct HUDContentView: View {
             Capsule()
                 .strokeBorder(.separator, lineWidth: 0.5)
         )
+        .padding(RecordingHUD.shadowInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: 0.2), value: model.state)
     }
