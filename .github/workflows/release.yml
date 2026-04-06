@@ -76,6 +76,9 @@ jobs:
       - name: Verify release artifacts
         run: ls -lah dist
 
+      - name: Create fixed-name DMG for stable download URL
+        run: cp "dist/HoldToTalk-v${VERSION}.dmg" dist/HoldToTalk.dmg
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -83,6 +86,7 @@ jobs:
           files: |
             dist/HoldToTalk-v*.zip
             dist/HoldToTalk-v*.dmg
+            dist/HoldToTalk.dmg
           generate_release_notes: true
 
       - name: Update Homebrew tap
