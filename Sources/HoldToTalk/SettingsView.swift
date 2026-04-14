@@ -14,12 +14,16 @@ struct SettingsView: View {
     @State private var diagnosticsMessage: String?
     @AppStorage(diagnosticLoggingEnabledDefaultsKey) private var diagnosticLoggingEnabled = false
 
+    @State private var openaiAPIKey: String = ""
+    @State private var anthropicAPIKey: String = ""
+
     private let hotkeys = HotkeyManager.Hotkey.selectableCases
     private var activeTranscriptionProfile: TranscriptionProfile {
         TranscriptionProfile(rawValue: engine.transcriptionProfile) ?? .balanced
     }
     private var allChecksHealthy: Bool {
-        engine.hasMicrophone && engine.hasPostEvent && engine.hasInputMonitoring && modelManager.isDownloaded
+        let modelOK = modelManager.isDownloaded || engine.resolvedTranscriptionProvider != .local
+        return engine.hasMicrophone && engine.hasPostEvent && engine.hasInputMonitoring && modelOK
     }
 
     var body: some View {
@@ -101,12 +105,14 @@ struct SettingsView: View {
                 )
                 statusRow(
                     title: "Speech model",
-                    ok: modelManager.isDownloaded,
+                    ok: modelManager.isDownloaded || engine.resolvedTranscriptionProvider != .local,
                     details: modelManager.isDownloaded
                         ? "\(SpeechModelInfo.displayName) ready"
                         : (modelManager.isDownloading
                             ? "Downloading \(SpeechModelInfo.displayName)..."
-                            : "\(SpeechModelInfo.displayName) not downloaded")
+                            : (engine.resolvedTranscriptionProvider != .local
+                                ? "Using cloud transcription"
+                                : "\(SpeechModelInfo.displayName) not downloaded"))
                 )
                 Toggle("Store diagnostic logs", isOn: $diagnosticLoggingEnabled)
                     .onChange(of: diagnosticLoggingEnabled) { _, enabled in
@@ -141,93 +147,159 @@ struct SettingsView: View {
             }
 
             Section("Transcription") {
-                Picker("Profile", selection: $engine.transcriptionProfile) {
-                    ForEach(TranscriptionProfile.allCases) { profile in
-                        Text(profile.displayName)
-                            .tag(profile.rawValue)
+                Picker("Provider", selection: $engine.transcriptionProvider) {
+                    ForEach(TranscriptionProvider.allCases) { provider in
+                        Text(provider.displayName).tag(provider.rawValue)
                     }
                 }
-                Text(activeTranscriptionProfile.summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
-                DisclosureGroup("Hotwords") {
-                    TextEditor(text: $engine.hotwords)
-                        .font(.system(.caption, design: .monospaced))
-                        .frame(minHeight: 60, maxHeight: 120)
-                        .scrollContentBackground(.hidden)
-                        .padding(4)
-                        .background(.background)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(.separator)
-                        )
+                if engine.resolvedTranscriptionProvider == .openAI {
+                    SecureField("OpenAI API Key", text: $openaiAPIKey)
+                        .onChange(of: openaiAPIKey) {
+                            KeychainHelper.save(account: "openai", key: openaiAPIKey)
+                        }
+                    TextField("Model", text: $engine.openaiTranscriptionModel,
+                              prompt: Text("gpt-4o-mini-transcribe"))
+                        .font(.system(.body, design: .monospaced))
+                    TextField("Base URL", text: $engine.openaiBaseURL,
+                              prompt: Text("https://api.openai.com/v1"))
+                        .font(.system(.body, design: .monospaced))
+                    Text("Uses the OpenAI-compatible transcription API. Your API key is stored in the macOS Keychain.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
-                    Text("Boost recognition of specific words or phrases. One per line. Uses modified beam search (slightly slower).")
+                if engine.resolvedTranscriptionProvider == .local {
+                    Picker("Profile", selection: $engine.transcriptionProfile) {
+                        ForEach(TranscriptionProfile.allCases) { profile in
+                            Text(profile.displayName)
+                                .tag(profile.rawValue)
+                        }
+                    }
+                    Text(activeTranscriptionProfile.summary)
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    HStack {
-                        Spacer()
-                        if !engine.hotwords.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Button("Clear") {
-                                engine.hotwords = ""
+                    DisclosureGroup("Hotwords") {
+                        TextEditor(text: $engine.hotwords)
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(minHeight: 60, maxHeight: 120)
+                            .scrollContentBackground(.hidden)
+                            .padding(4)
+                            .background(.background)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(.separator)
+                            )
+
+                        Text("Boost recognition of specific words or phrases. One per line. Uses modified beam search (slightly slower).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        HStack {
+                            Spacer()
+                            if !engine.hotwords.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Button("Clear") {
+                                    engine.hotwords = ""
+                                }
+                                .controlSize(.small)
                             }
-                            .controlSize(.small)
                         }
                     }
-                }
-                .onChange(of: engine.hotwords) {
-                    engine.reloadTranscriber()
+                    .onChange(of: engine.hotwords) {
+                        engine.reloadTranscriber()
+                    }
                 }
             }
 
             Section("Text Cleanup") {
-                let availability = TextCleanup.checkAvailability()
-                Toggle("Clean up text with Apple Intelligence", isOn: $engine.textCleanupEnabled)
-                    .disabled(availability != .available)
+                Toggle("Clean up transcribed text", isOn: $engine.textCleanupEnabled)
 
-                HStack(spacing: 6) {
-                    if availability == .available {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Text("Apple Intelligence is available")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Image(systemName: "info.circle.fill")
-                            .foregroundStyle(.orange)
-                        Text(textCleanupUnavailableReason(availability))
+                if engine.textCleanupEnabled {
+                    Picker("Provider", selection: $engine.cleanupProvider) {
+                        ForEach(CleanupProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider.rawValue)
+                        }
+                    }
+
+                    if engine.resolvedCleanupProvider == .appleIntelligence {
+                        let availability = TextCleanup.checkAvailability()
+                        HStack(spacing: 6) {
+                            if availability == .available {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                                Text("Apple Intelligence is available")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                Text(textCleanupUnavailableReason(availability))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Text("Text is cleaned up on-device to fix punctuation, remove repeated words, and remove filler words.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                }
 
-                Text("When enabled, transcribed text is cleaned up on-device to fix punctuation, remove repeated words, and remove filler words. Meaning is preserved.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                DisclosureGroup("Prompt") {
-                    TextEditor(text: $engine.textCleanupPrompt)
-                        .font(.system(.caption, design: .monospaced))
-                        .frame(minHeight: 80, maxHeight: 120)
-                        .scrollContentBackground(.hidden)
-                        .padding(4)
-                        .background(.background)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(.separator)
-                        )
-
-                    HStack {
-                        Spacer()
-                        if engine.textCleanupPrompt != TextCleanup.defaultPrompt {
-                            Button("Reset to Default") {
-                                engine.textCleanupPrompt = TextCleanup.defaultPrompt
+                    if engine.resolvedCleanupProvider == .openAI {
+                        SecureField("OpenAI API Key", text: $openaiAPIKey)
+                            .onChange(of: openaiAPIKey) {
+                                KeychainHelper.save(account: "openai", key: openaiAPIKey)
                             }
-                            .controlSize(.small)
+                        TextField("Model", text: $engine.openaiCleanupModel,
+                                  prompt: Text(CleanupProvider.openAI.defaultModel))
+                            .font(.system(.body, design: .monospaced))
+                        if engine.resolvedTranscriptionProvider != .openAI {
+                            TextField("Base URL", text: $engine.openaiBaseURL,
+                                      prompt: Text("https://api.openai.com/v1"))
+                                .font(.system(.body, design: .monospaced))
+                        }
+                        Text("Your API key is stored in the macOS Keychain.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if engine.resolvedCleanupProvider == .anthropic {
+                        SecureField("Anthropic API Key", text: $anthropicAPIKey)
+                            .onChange(of: anthropicAPIKey) {
+                                KeychainHelper.save(account: "anthropic", key: anthropicAPIKey)
+                            }
+                        TextField("Model", text: $engine.anthropicCleanupModel,
+                                  prompt: Text(CleanupProvider.anthropic.defaultModel))
+                            .font(.system(.body, design: .monospaced))
+                        TextField("Base URL", text: $engine.anthropicBaseURL,
+                                  prompt: Text("https://api.anthropic.com"))
+                            .font(.system(.body, design: .monospaced))
+                        Text("Your API key is stored in the macOS Keychain.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    DisclosureGroup("Prompt") {
+                        TextEditor(text: $engine.textCleanupPrompt)
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(minHeight: 80, maxHeight: 120)
+                            .scrollContentBackground(.hidden)
+                            .padding(4)
+                            .background(.background)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(.separator)
+                            )
+
+                        HStack {
+                            Spacer()
+                            if engine.textCleanupPrompt != TextCleanup.defaultPrompt {
+                                Button("Reset to Default") {
+                                    engine.textCleanupPrompt = TextCleanup.defaultPrompt
+                                }
+                                .controlSize(.small)
+                            }
                         }
                     }
                 }
@@ -251,7 +323,7 @@ struct SettingsView: View {
 
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 720)
+        .frame(width: 440, height: 780)
         .padding()
         .onAppear {
             modelManager.refreshDownloadStatus()
@@ -259,6 +331,8 @@ struct SettingsView: View {
             if TranscriptionProfile(rawValue: engine.transcriptionProfile) == nil {
                 engine.transcriptionProfile = TranscriptionProfile.balanced.rawValue
             }
+            openaiAPIKey = KeychainHelper.load(account: "openai") ?? ""
+            anthropicAPIKey = KeychainHelper.load(account: "anthropic") ?? ""
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshPermissionSnapshot()

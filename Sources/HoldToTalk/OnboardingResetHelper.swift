@@ -14,6 +14,13 @@ let textCleanupEnabledDefaultsKey = "textCleanupEnabled"
 let textCleanupPromptDefaultsKey = "textCleanupPrompt"
 let hotwordsDefaultsKey = "hotwords"
 let launchAtLoginDefaultsKey = "launchAtLogin"
+let transcriptionProviderDefaultsKey = "transcriptionProvider"
+let cleanupProviderDefaultsKey = "cleanupProvider"
+let openaiTranscriptionModelDefaultsKey = "openaiTranscriptionModel"
+let openaiCleanupModelDefaultsKey = "openaiCleanupModel"
+let anthropicCleanupModelDefaultsKey = "anthropicCleanupModel"
+let openaiBaseURLDefaultsKey = "openaiBaseURL"
+let anthropicBaseURLDefaultsKey = "anthropicBaseURL"
 
 enum OnboardingLaunchPreparation: Equatable {
     case none

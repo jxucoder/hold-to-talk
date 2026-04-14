@@ -30,6 +30,14 @@ enum TextCleanup {
         return text
     }
 
+    static let defaultPrompt = """
+        You fix grammar and punctuation in speech-to-text transcriptions. \
+        Output ONLY the cleaned transcription — nothing else.
+        - Remove filler words (um, uh, like, you know) unless intentional.
+        - Resolve self-corrections: "Tuesday no Wednesday" → "Wednesday".
+        - Do NOT add, remove, or change any other words.
+        """
+
     #if canImport(FoundationModels)
     @available(macOS 26, *)
     private static func _checkAvailability() -> TextCleanupAvailability {
@@ -47,14 +55,6 @@ enum TextCleanup {
             return .unavailableNotEnabled
         }
     }
-
-    static let defaultPrompt = """
-        You fix grammar and punctuation in speech-to-text transcriptions. \
-        Output ONLY the cleaned transcription — nothing else.
-        - Remove filler words (um, uh, like, you know) unless intentional.
-        - Resolve self-corrections: "Tuesday no Wednesday" → "Wednesday".
-        - Do NOT add, remove, or change any other words.
-        """
 
     private static func userMessage(_ raw: String) -> String {
         """

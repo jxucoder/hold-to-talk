@@ -70,6 +70,13 @@ final class DictationEngine: ObservableObject {
     @AppStorage(textCleanupEnabledDefaultsKey) var textCleanupEnabled = TextCleanup.checkAvailability() == .available
     @AppStorage(textCleanupPromptDefaultsKey) var textCleanupPrompt = TextCleanup.defaultPrompt
     @AppStorage(hotwordsDefaultsKey) var hotwords: String = ""
+    @AppStorage(transcriptionProviderDefaultsKey) var transcriptionProvider = TranscriptionProvider.local.rawValue
+    @AppStorage(cleanupProviderDefaultsKey) var cleanupProvider = CleanupProvider.appleIntelligence.rawValue
+    @AppStorage(openaiTranscriptionModelDefaultsKey) var openaiTranscriptionModel = "gpt-4o-mini-transcribe"
+    @AppStorage(openaiCleanupModelDefaultsKey) var openaiCleanupModel = CleanupProvider.openAI.defaultModel
+    @AppStorage(anthropicCleanupModelDefaultsKey) var anthropicCleanupModel = CleanupProvider.anthropic.defaultModel
+    @AppStorage(openaiBaseURLDefaultsKey) var openaiBaseURL = ""
+    @AppStorage(anthropicBaseURLDefaultsKey) var anthropicBaseURL = ""
 
     private let recorder = AudioRecorder()
     private var transcriber: Transcriber?
@@ -115,6 +122,7 @@ final class DictationEngine: ObservableObject {
     }
 
     func prewarmTranscriber() {
+        guard resolvedTranscriptionProvider == .local else { return }
         guard !completedWarmup else { return }
         guard transcriberWarmupTask == nil else { return }
 
@@ -230,6 +238,15 @@ final class DictationEngine: ObservableObject {
         textCleanupEnabled = TextCleanup.checkAvailability() == .available
         textCleanupPrompt = TextCleanup.defaultPrompt
         hotwords = ""
+        transcriptionProvider = TranscriptionProvider.local.rawValue
+        cleanupProvider = CleanupProvider.appleIntelligence.rawValue
+        openaiTranscriptionModel = "gpt-4o-mini-transcribe"
+        openaiCleanupModel = CleanupProvider.openAI.defaultModel
+        anthropicCleanupModel = CleanupProvider.anthropic.defaultModel
+        openaiBaseURL = ""
+        anthropicBaseURL = ""
+        KeychainHelper.delete(account: "openai")
+        KeychainHelper.delete(account: "anthropic")
 
         modelManager.handleFreshOnboardingReset()
         refreshPermissionSnapshot()
@@ -296,14 +313,29 @@ final class DictationEngine: ObservableObject {
         debugLog("[holdtotalk] Captured \(String(format: "%.1f", duration))s of audio")
 
         state = .transcribing
-        let activeTranscriber = ensureActiveTranscriber()
         do {
+            // -- Transcription --
             let transcribeStart = Date()
-            let profile = resolvedTranscriptionProfile
-            let currentHotwords = hotwords
-            let raw = try await activeTranscriber.transcribe(audio, profile: profile, hotwords: currentHotwords)
-            let transcribeTime = Date().timeIntervalSince(transcribeStart)
-            debugLog("[holdtotalk] Transcribed \(String(format: "%.1f", duration))s audio in \(String(format: "%.2f", transcribeTime))s [\(profile.rawValue)]")
+            let raw: String
+            switch resolvedTranscriptionProvider {
+            case .local:
+                let activeTranscriber = ensureActiveTranscriber()
+                let profile = resolvedTranscriptionProfile
+                let currentHotwords = hotwords
+                raw = try await activeTranscriber.transcribe(audio, profile: profile, hotwords: currentHotwords)
+                let transcribeTime = Date().timeIntervalSince(transcribeStart)
+                debugLog("[holdtotalk] Transcribed \(String(format: "%.1f", duration))s audio in \(String(format: "%.2f", transcribeTime))s [\(profile.rawValue)]")
+            case .openAI:
+                guard let apiKey = KeychainHelper.load(account: "openai"), !apiKey.isEmpty else {
+                    throw CloudTranscriberError.noAPIKey
+                }
+                let model = openaiTranscriptionModel.isEmpty ? "gpt-4o-mini-transcribe" : openaiTranscriptionModel
+                let baseURL = openaiBaseURL.isEmpty ? "https://api.openai.com/v1" : openaiBaseURL
+                raw = try await CloudTranscriber.transcribe(audio: audio, apiKey: apiKey, model: model, baseURL: baseURL)
+                let transcribeTime = Date().timeIntervalSince(transcribeStart)
+                debugLog("[holdtotalk] Cloud transcribed \(String(format: "%.1f", duration))s audio in \(String(format: "%.2f", transcribeTime))s [openai/\(model)]")
+            }
+
             guard !raw.isEmpty else {
                 debugLog("[holdtotalk] (no speech detected)")
                 state = .idle
@@ -315,13 +347,28 @@ final class DictationEngine: ObservableObject {
             lastRawText = raw
             debugLogSensitive("[holdtotalk] Raw", text: raw)
 
+            // -- Text Cleanup --
             let finalText: String
             if textCleanupEnabled {
                 let cleanupStart = Date()
-                let cleaned = await TextCleanup.cleanup(raw, prompt: textCleanupPrompt)
+                let cleaned: String
+                switch resolvedCleanupProvider {
+                case .appleIntelligence:
+                    cleaned = await TextCleanup.cleanup(raw, prompt: textCleanupPrompt)
+                case .openAI:
+                    let apiKey = KeychainHelper.load(account: "openai") ?? ""
+                    let model = openaiCleanupModel.isEmpty ? CleanupProvider.openAI.defaultModel : openaiCleanupModel
+                    let baseURL = openaiBaseURL.isEmpty ? nil : openaiBaseURL
+                    cleaned = await CloudTextCleanup.cleanup(raw, provider: .openAI, apiKey: apiKey, model: model, prompt: textCleanupPrompt, baseURL: baseURL)
+                case .anthropic:
+                    let apiKey = KeychainHelper.load(account: "anthropic") ?? ""
+                    let model = anthropicCleanupModel.isEmpty ? CleanupProvider.anthropic.defaultModel : anthropicCleanupModel
+                    let baseURL = anthropicBaseURL.isEmpty ? nil : anthropicBaseURL
+                    cleaned = await CloudTextCleanup.cleanup(raw, provider: .anthropic, apiKey: apiKey, model: model, prompt: textCleanupPrompt, baseURL: baseURL)
+                }
                 let cleanupTime = Date().timeIntervalSince(cleanupStart)
                 let changed = cleaned != raw
-                debugLog("[holdtotalk] Text cleanup \(changed ? "modified" : "unchanged") in \(String(format: "%.2f", cleanupTime))s")
+                debugLog("[holdtotalk] Text cleanup \(changed ? "modified" : "unchanged") in \(String(format: "%.2f", cleanupTime))s [\(resolvedCleanupProvider.rawValue)]")
                 finalText = cleaned
             } else {
                 finalText = raw
@@ -368,6 +415,14 @@ final class DictationEngine: ObservableObject {
             transcriber = Transcriber()
         }
         return transcriber!
+    }
+
+    var resolvedTranscriptionProvider: TranscriptionProvider {
+        TranscriptionProvider(rawValue: transcriptionProvider) ?? .local
+    }
+
+    var resolvedCleanupProvider: CleanupProvider {
+        CleanupProvider(rawValue: cleanupProvider) ?? .appleIntelligence
     }
 
     private var resolvedTranscriptionProfile: TranscriptionProfile {
