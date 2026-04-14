@@ -4,11 +4,16 @@ import Foundation
 enum CloudTranscriber {
 
     /// Transcribe 16 kHz mono float audio via the OpenAI transcription API.
+    ///
+    /// - Parameter prompt: Optional instructions injected as a user message for
+    ///   gpt-4o-transcribe models. Used to fold cleanup instructions into the
+    ///   transcription call so a separate cleanup round-trip can be skipped.
     static func transcribe(
         audio: [Float],
         apiKey: String,
         model: String = "gpt-4o-mini-transcribe",
-        baseURL: String = "https://api.openai.com/v1"
+        baseURL: String = "https://api.openai.com/v1",
+        prompt: String? = nil
     ) async throws -> String {
         guard !audio.isEmpty else { return "" }
         guard !apiKey.isEmpty else { throw CloudTranscriberError.noAPIKey }
@@ -26,6 +31,9 @@ enum CloudTranscriber {
         var body = Data()
         body.appendFormField(named: "model", value: model, boundary: boundary)
         body.appendFormField(named: "response_format", value: "text", boundary: boundary)
+        if let prompt, !prompt.isEmpty {
+            body.appendFormField(named: "prompt", value: prompt, boundary: boundary)
+        }
         body.appendFileField(named: "file", filename: "audio.wav", mimeType: "audio/wav", data: wavData, boundary: boundary)
         body.append("--\(boundary)--\r\n")
 
