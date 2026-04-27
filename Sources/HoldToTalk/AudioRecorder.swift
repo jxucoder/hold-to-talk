@@ -83,7 +83,16 @@ final class AudioRecorder: @unchecked Sendable {
         levelHandler?(0)
 
         guard !captured.isEmpty else { return [] }
-        return resample(buffers: captured)
+        let result = resample(buffers: captured)
+
+        // Zero audio buffer memory before releasing to prevent recovery from memory dumps.
+        for buf in captured {
+            if let channelData = buf.floatChannelData?[0] {
+                memset(channelData, 0, Int(buf.frameCapacity) * MemoryLayout<Float>.size)
+            }
+        }
+
+        return result
     }
 
     // MARK: - Resampling

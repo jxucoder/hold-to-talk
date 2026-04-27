@@ -288,12 +288,17 @@ enum TextInserter {
         }
         keyDown.flags = .maskCommand
         keyUp.flags = .maskCommand
+        let changeCountBeforePaste = pasteboard.changeCount
         keyDown.post(tap: .cgAnnotatedSessionEventTap)
         keyUp.post(tap: .cgAnnotatedSessionEventTap)
 
-        // Allow the paste to land before restoring the clipboard.
-        // 400ms gives even heavily loaded systems enough time to process the CMD+V event.
-        usleep(400_000)
+        // Poll for the paste to land (the target app reads the clipboard, which may
+        // bump changeCount), then restore immediately. Cap at 200ms to minimize the
+        // window during which dictated text sits on the pasteboard.
+        for _ in 0..<20 {
+            usleep(10_000) // 10ms per tick
+            if pasteboard.changeCount != changeCountBeforePaste { break }
+        }
         restoreClipboard(pasteboard, items: savedItems)
         return true
     }

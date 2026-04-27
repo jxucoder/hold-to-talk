@@ -1,3 +1,4 @@
+import CommonCrypto
 import Foundation
 
 struct SpeechModelInfo {
@@ -10,6 +11,8 @@ struct SpeechModelInfo {
     static let downloadURL = URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2")!
     static let modelDirectoryName = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
     static let markerFile = "tokens.txt"
+    /// SHA-256 hash of the model archive for integrity verification after download.
+    static let expectedSHA256 = "157c157bc51155e03e37d2466522a3a737dd9c72bb25f36eb18912964161e1ad"
 
     static let parakeetURL = URL(string: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2")!
     static let sherpaOnnxURL = URL(string: "https://github.com/k2-fsa/sherpa-onnx")!
@@ -74,6 +77,7 @@ final class ModelManager: ObservableObject {
             do {
                 let tempFileURL = try await self.downloadArchive()
                 if Task.isCancelled { return }
+                try Self.verifyChecksum(of: tempFileURL, expected: SpeechModelInfo.expectedSHA256)
                 try await self.extractArchive(tempFileURL)
                 if !Task.isCancelled {
                     await MainActor.run { self.isDownloaded = true }
@@ -142,6 +146,19 @@ final class ModelManager: ObservableObject {
     }
 
     // MARK: - Private
+
+    /// Verify the SHA-256 checksum of a downloaded file.
+    nonisolated static func verifyChecksum(of fileURL: URL, expected: String) throws {
+        let data = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+        var digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+        data.withUnsafeBytes { buffer in
+            _ = CC_SHA256(buffer.baseAddress, CC_LONG(buffer.count), &digest)
+        }
+        let actual = digest.map { String(format: "%02x", $0) }.joined()
+        guard actual == expected else {
+            throw ModelExtractionError.checksumMismatch(expected: expected, actual: actual)
+        }
+    }
 
     private func downloadArchive() async throws -> URL {
         let (tempURL, _) = try await URLSession.shared.download(
@@ -221,11 +238,14 @@ final class ModelManager: ObservableObject {
 
 enum ModelExtractionError: LocalizedError {
     case extractionFailed(String)
+    case checksumMismatch(expected: String, actual: String)
 
     var errorDescription: String? {
         switch self {
         case .extractionFailed(let message):
             return "Model extraction failed: \(message)"
+        case .checksumMismatch(let expected, let actual):
+            return "Model integrity check failed. Expected SHA-256 \(expected.prefix(12))..., got \(actual.prefix(12)).... The download may be corrupted or tampered with. Please try again."
         }
     }
 }
