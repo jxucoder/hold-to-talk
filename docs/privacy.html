@@ -13,7 +13,7 @@
     gtag('config', 'G-Q75FRP5M1T');
   </script>
   <title>Privacy Policy - Hold to Talk</title>
-  <meta name="description" content="Privacy policy for the Hold to Talk app and website. Learn what stays on-device, what network requests exist, and how website analytics work.">
+  <meta name="description" content="Privacy policy for the Hold to Talk app and website. Learn what stays on-device, how optional cloud features work with your own API keys, and how website analytics work.">
   <link rel="icon" href="logo.png" type="image/png">
   <style>
     :root {
@@ -227,7 +227,7 @@
     <section class="hero">
       <div class="eyebrow">Privacy Policy</div>
       <h1>What Hold to Talk does with your data</h1>
-      <p class="subtitle">The app is built to keep dictation on your Mac. The website uses analytics to understand traffic. This page covers both.</p>
+      <p class="subtitle">The app is local-first by default. Optional cloud features use your own API keys with a direct connection to the provider. This page covers the app and website.</p>
     </section>
 
     <article class="policy">
@@ -236,22 +236,32 @@
 
       <div class="summary">
         <ul>
-          <li>The <strong>app</strong> is designed to keep dictation data on your Mac.</li>
+          <li>The <strong>app</strong> keeps dictation data on your Mac by default. Optional cloud features send data directly to the provider you choose using your own API key.</li>
           <li>The <strong>website</strong> uses Google Analytics to understand traffic and page usage.</li>
-          <li>Hold to Talk does <strong>not</strong> sell personal data or use advertising trackers inside the app.</li>
+          <li>Hold to Talk does <strong>not</strong> sell personal data, proxy your cloud API calls, or use advertising trackers inside the app.</li>
         </ul>
       </div>
 
       <h2>Hold to Talk App</h2>
 
       <h3>What the app does with your data</h3>
-      <p>Hold to Talk records microphone audio only while you hold the dictation hotkey. Speech recognition runs locally on your Mac using on-device models. Audio and transcribed text are not sent to Hold to Talk servers.</p>
+      <p>Hold to Talk records microphone audio only while you hold the dictation hotkey. By default, speech recognition runs locally on your Mac using on-device models. Audio and transcribed text are not sent to Hold to Talk servers.</p>
+
+      <h3>Optional cloud features (bring your own key)</h3>
+      <p>You can optionally enable cloud-powered transcription (OpenAI) or text cleanup (OpenAI, Anthropic) by providing your own API key in Settings. When cloud features are enabled:</p>
+      <ul>
+        <li>Audio or transcription text is sent <strong>directly from your Mac to the provider</strong> (e.g., api.openai.com or api.anthropic.com). Hold to Talk does not operate any proxy or relay server.</li>
+        <li>Your API key is stored in the <strong>macOS Keychain</strong>, not in plain text.</li>
+        <li>Hold to Talk <strong>never sees, collects, or stores</strong> your API key, audio, or transcription text.</li>
+        <li>The provider's own privacy policy and data retention rules apply.</li>
+      </ul>
+      <p>Cloud features are <strong>off by default</strong>. If you do not add an API key, the app operates entirely on-device.</p>
 
       <h3>Audio</h3>
       <ul>
         <li>Microphone audio is captured only during an active dictation session.</li>
-        <li>Audio is processed locally in memory for transcription.</li>
-        <li>Audio is not uploaded to Hold to Talk.</li>
+        <li>When using on-device transcription (default), audio is processed locally in memory and is not sent over the network.</li>
+        <li>When using cloud transcription, audio is sent directly to the provider you configured. It is not sent to Hold to Talk.</li>
         <li>Audio is not stored as recordings by Hold to Talk.</li>
       </ul>
 
@@ -260,6 +270,7 @@
         <li>Transcribed text is inserted into the app you are using.</li>
         <li>Hold to Talk does not keep a cloud transcription history.</li>
         <li>If optional Apple Intelligence cleanup is enabled, cleanup is performed by on-device system features provided by macOS.</li>
+        <li>If cloud text cleanup is enabled, transcription text is sent directly to the provider you configured. It is not sent to Hold to Talk.</li>
         <li>If you explicitly enable local diagnostic logging for troubleshooting, transcript text is redacted in those logs by default.</li>
       </ul>
 
@@ -269,7 +280,7 @@
 
       <h3>Network activity from the app</h3>
       <p>The app may make limited network requests for product delivery features, including downloading speech models from supported model hosts such as Hugging Face and checking for direct-release app updates through Sparkle when using the non-App-Store version.</p>
-      <p>These requests are used to download app or model files. Hold to Talk does not send your microphone audio or transcription text as part of those requests.</p>
+      <p>If you enable cloud transcription or cleanup, the app also makes requests to the provider's API (e.g., api.openai.com, api.anthropic.com) using your own API key. These requests go directly to the provider -- Hold to Talk does not relay or log them.</p>
 
       <h3>App analytics and tracking</h3>
       <p>Hold to Talk does not include in-app advertising, third-party analytics SDKs, or app telemetry that tracks what you dictate.</p>
@@ -299,6 +310,8 @@
         <li><strong>GitHub</strong> for website hosting, source code, and release downloads</li>
         <li><strong>Hugging Face</strong> for speech model downloads</li>
         <li><strong>Sparkle</strong> for direct-release update delivery</li>
+        <li><strong>OpenAI</strong> for cloud transcription and/or text cleanup (opt-in, bring your own key)</li>
+        <li><strong>Anthropic</strong> for cloud text cleanup (opt-in, bring your own key)</li>
       </ul>
       <p>Their handling of technical request data is governed by their own policies.</p>
 
@@ -322,7 +335,7 @@
       <a href="https://github.com/jxucoder/hold-to-talk/releases/latest">Releases</a>
       <a href="https://github.com/jxucoder/hold-to-talk/blob/main/LICENSE">Apache 2.0</a>
     </div>
-    <p>Hold to Talk is free, open-source, and local-first software for Mac.</p>
+    <p>Hold to Talk is free, open-source, and local-first software for Mac. Cloud features use your own API keys.</p>
   </div>
 </footer>
 </body>

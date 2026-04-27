@@ -44,7 +44,7 @@ struct SettingsView: View {
                     .frame(width: 64, height: 64)
                     Text("Hold to Talk")
                         .font(.title2.bold())
-                    Text("Free and open-source. Audio stays on your Mac. Fast on-device speech recognition.")
+                    Text("Free and open-source. Local-first with optional bring-your-own-key cloud models.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

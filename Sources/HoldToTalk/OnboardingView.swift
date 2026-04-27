@@ -137,8 +137,8 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 featureRow("chevron.left.forwardslash.chevron.right", "Free and open-source")
-                featureRow("lock.fill", "Audio and transcripts stay on-device")
-                featureRow("bolt.fill", "Fast on-device speech model (Parakeet TDT)")
+                featureRow("lock.fill", "Local by default, optional BYO-key cloud")
+                featureRow("bolt.fill", "Fast on-device or cloud transcription")
             }
             .frame(maxWidth: 360, alignment: .leading)
 
@@ -532,7 +532,7 @@ struct OnboardingView: View {
             Text("Download Model")
                 .font(.title2.bold())
 
-            Text("Hold to Talk needs an on-device speech model.\nThe download starts when you press the button below. You can inspect exactly where the model comes from.")
+            Text("Hold to Talk uses an on-device speech model by default.\nThe download starts when you press the button below. You can also switch to cloud transcription later in Settings.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

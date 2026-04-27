@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Hold To Talk is a macOS menu bar app for hold-to-talk dictation. Hold a hotkey, speak, release, and transcribed text is inserted into the active app. Everything runs locally: no cloud APIs, no accounts, no tracking.
+Hold To Talk is a macOS menu bar app for hold-to-talk dictation. Hold a hotkey, speak, release, and transcribed text is inserted into the active app. Local by default with optional bring-your-own-key cloud transcription (OpenAI) and text cleanup (OpenAI, Anthropic).
 
 ## Tech Stack
 
@@ -49,8 +49,8 @@ swift run HoldToTalk -- --skip-permissions                # Pretend all permissi
 ```
 HotkeyManager (global hotkey press/release)
   -> AudioRecorder (AVAudioEngine, 16kHz mono float buffer)
-    -> Transcriber (Silero VAD segmentation + sherpa-onnx offline recognizer)
-      -> TextCleanup (optional, Apple Intelligence on macOS 26+)
+    -> Transcriber (local: Silero VAD + sherpa-onnx) OR CloudTranscriber (OpenAI API, BYO key)
+      -> TextCleanup (Apple Intelligence) OR CloudTextCleanup (OpenAI/Anthropic, BYO key)
         -> TextInserter (CGEvent unicode or clipboard paste)
           -> active app
 ```
@@ -66,6 +66,10 @@ Orchestrated by `DictationEngine` with states: `idle` -> `recording` -> `transcr
 - User-configurable system prompt (editable in Settings, stored in UserDefaults)
 - 3-second timeout via task group race; returns original text on failure
 - Strips leaked XML tags from model output as safety net
+
+### Cloud Transcription and Cleanup (BYO Key)
+
+`CloudTranscriber.swift` sends audio to an OpenAI-compatible `/audio/transcriptions` endpoint. `CloudTextCleanup.swift` sends text to OpenAI or Anthropic chat/messages APIs. Both use user-provided API keys stored in the macOS Keychain (`KeychainHelper.swift`). When using OpenAI for both transcription and cleanup, cleanup instructions are folded into the transcription prompt to reduce latency. Hold to Talk never proxies or stores API keys or data server-side.
 
 ### Text Insertion
 
