@@ -83,7 +83,14 @@ final class AudioRecorder: @unchecked Sendable {
         levelHandler?(0)
 
         guard !captured.isEmpty else { return [] }
-        return resample(buffers: captured)
+        let result = resample(buffers: captured)
+
+        // Zero audio buffer memory before releasing to prevent recovery from memory dumps.
+        for buf in captured {
+            Self.zeroBuffer(buf)
+        }
+
+        return result
     }
 
     // MARK: - Resampling
@@ -105,8 +112,10 @@ final class AudioRecorder: @unchecked Sendable {
 
         // If already 16 kHz mono, skip conversion
         if Int(srcFormat.sampleRate) == 16000 && srcFormat.channelCount == 1 {
-            return Array(UnsafeBufferPointer(start: combined.floatChannelData?[0],
-                                             count: Int(combined.frameLength)))
+            let result = Array(UnsafeBufferPointer(start: combined.floatChannelData?[0],
+                                                    count: Int(combined.frameLength)))
+            Self.zeroBuffer(combined)
+            return result
         }
 
         guard let dstFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
@@ -136,11 +145,23 @@ final class AudioRecorder: @unchecked Sendable {
 
         if let error {
             print("[audio] resample error: \(error)")
+            Self.zeroBuffer(combined)
+            Self.zeroBuffer(output)
             return []
         }
 
-        return Array(UnsafeBufferPointer(start: output.floatChannelData?[0],
-                                         count: Int(output.frameLength)))
+        let result = Array(UnsafeBufferPointer(start: output.floatChannelData?[0],
+                                                count: Int(output.frameLength)))
+        Self.zeroBuffer(combined)
+        Self.zeroBuffer(output)
+        return result
+    }
+
+    /// Zero the backing memory of an audio buffer to prevent recovery from memory dumps.
+    private static func zeroBuffer(_ buffer: AVAudioPCMBuffer) {
+        if let channelData = buffer.floatChannelData?[0] {
+            memset(channelData, 0, Int(buffer.frameCapacity) * MemoryLayout<Float>.size)
+        }
     }
 
     private static func normalizedLevel(for buffer: AVAudioPCMBuffer) -> Float {
