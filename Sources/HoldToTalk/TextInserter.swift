@@ -288,17 +288,13 @@ enum TextInserter {
         }
         keyDown.flags = .maskCommand
         keyUp.flags = .maskCommand
-        let changeCountBeforePaste = pasteboard.changeCount
         keyDown.post(tap: .cgAnnotatedSessionEventTap)
         keyUp.post(tap: .cgAnnotatedSessionEventTap)
 
-        // Poll for the paste to land (the target app reads the clipboard, which may
-        // bump changeCount), then restore immediately. Cap at 200ms to minimize the
-        // window during which dictated text sits on the pasteboard.
-        for _ in 0..<20 {
-            usleep(10_000) // 10ms per tick
-            if pasteboard.changeCount != changeCountBeforePaste { break }
-        }
+        // Wait for the target app to process CMD+V and read from the pasteboard.
+        // Pasteboard reads don't change observable state, so a fixed delay is
+        // the only reliable approach. 400ms accommodates heavily loaded systems.
+        usleep(400_000)
         restoreClipboard(pasteboard, items: savedItems)
         return true
     }

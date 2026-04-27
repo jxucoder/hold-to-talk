@@ -1,52 +1,14 @@
 import Foundation
-import Security
 
-// MARK: - Pinned URLSession
+// MARK: - Cloud URLSession
 
-/// Known provider hostnames where we perform strict server trust evaluation.
-/// Custom base URLs (enterprise proxies) use standard HTTPS validation only.
-private let pinnedHosts: Set<String> = ["api.openai.com", "api.anthropic.com"]
-
-/// Returns a URLSession that performs server trust evaluation for known provider
-/// hosts. For requests to custom base URLs, standard HTTPS validation applies.
-func cloudURLSession() -> URLSession {
-    URLSession(configuration: .default, delegate: CloudTrustDelegate.shared, delegateQueue: nil)
-}
-
-final class CloudTrustDelegate: NSObject, URLSessionDelegate, Sendable {
-    static let shared = CloudTrustDelegate()
-
-    func urlSession(
-        _ session: URLSession,
-        didReceive challenge: URLAuthenticationChallenge
-    ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              let serverTrust = challenge.protectionSpace.serverTrust else {
-            return (.performDefaultHandling, nil)
-        }
-
-        let host = challenge.protectionSpace.host
-
-        // For known provider hosts, perform strict evaluation with hostname check.
-        // For custom hosts (enterprise proxies), use default system validation.
-        guard pinnedHosts.contains(host) else {
-            return (.performDefaultHandling, nil)
-        }
-
-        let policy = SecPolicyCreateSSL(true, host as CFString)
-        SecTrustSetPolicies(serverTrust, policy)
-
-        var error: CFError?
-        let trusted = SecTrustEvaluateWithError(serverTrust, &error)
-
-        if trusted {
-            return (.useCredential, URLCredential(trust: serverTrust))
-        } else {
-            debugLog("[holdtotalk] TLS trust evaluation failed for \(host): \(error?.localizedDescription ?? "unknown")")
-            return (.cancelAuthenticationChallenge, nil)
-        }
-    }
-}
+/// Shared URLSession for cloud API requests. Uses default system TLS validation
+/// (certificate chain + hostname check via ATS). A single cached instance avoids
+/// leaking sessions and enables HTTP/2 connection reuse across requests.
+let cloudSession: URLSession = {
+    let config = URLSessionConfiguration.default
+    return URLSession(configuration: config)
+}()
 
 // MARK: - URL Validation
 

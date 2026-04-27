@@ -40,7 +40,7 @@ enum CloudTranscriber {
 
         request.httpBody = body
 
-        let (data, response) = try await cloudURLSession().data(for: request)
+        let (data, response) = try await cloudSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw CloudTranscriberError.invalidResponse

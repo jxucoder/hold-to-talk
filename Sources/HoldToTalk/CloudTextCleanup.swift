@@ -70,7 +70,7 @@ enum CloudTextCleanup {
         request.timeoutInterval = 15
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await cloudURLSession().data(for: request)
+        let (data, response) = try await cloudSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -120,7 +120,7 @@ enum CloudTextCleanup {
         request.timeoutInterval = 15
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await cloudURLSession().data(for: request)
+        let (data, response) = try await cloudSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0

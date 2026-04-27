@@ -76,6 +76,7 @@ final class ModelManager: ObservableObject {
             guard let self else { return }
             do {
                 let tempFileURL = try await self.downloadArchive()
+                defer { try? FileManager.default.removeItem(at: tempFileURL) }
                 if Task.isCancelled { return }
                 try Self.verifyChecksum(of: tempFileURL, expected: SpeechModelInfo.expectedSHA256)
                 try await self.extractArchive(tempFileURL)
@@ -190,9 +191,6 @@ final class ModelManager: ObservableObject {
             try process.run()
             process.waitUntilExit()
 
-            // Clean up temp archive
-            try? fm.removeItem(at: archiveURL)
-
             guard process.terminationStatus == 0 else {
                 let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
                 let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown extraction error"
@@ -226,6 +224,10 @@ final class ModelManager: ObservableObject {
             || lower.contains("internet")
             || lower.contains("offline") {
             return "Download failed due to a network issue. Check your connection and try again."
+        }
+
+        if case ModelExtractionError.checksumMismatch = error {
+            return error.localizedDescription
         }
 
         if error is ModelExtractionError {
