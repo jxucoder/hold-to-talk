@@ -1,5 +1,25 @@
 import Foundation
 
+// MARK: - URL Validation
+
+enum CloudURLError: LocalizedError {
+    case insecureURL(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .insecureURL(let url):
+            return "Refusing to send API request to non-HTTPS URL: \(url). Check your base URL in Settings."
+        }
+    }
+}
+
+/// Validate that a base URL uses HTTPS before sending API keys or audio over the network.
+func validateCloudBaseURL(_ baseURL: String) throws {
+    guard let url = URL(string: baseURL), url.scheme?.lowercased() == "https" else {
+        throw CloudURLError.insecureURL(baseURL)
+    }
+}
+
 // MARK: - Transcription Provider
 
 enum TranscriptionProvider: String, CaseIterable, Identifiable {

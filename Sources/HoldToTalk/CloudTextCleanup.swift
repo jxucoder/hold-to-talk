@@ -48,6 +48,7 @@ enum CloudTextCleanup {
         prompt: String,
         baseURL: String
     ) async throws -> String {
+        try validateCloudBaseURL(baseURL)
         let systemPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? TextCleanup.defaultPrompt : prompt
 
@@ -97,6 +98,7 @@ enum CloudTextCleanup {
         prompt: String,
         baseURL: String
     ) async throws -> String {
+        try validateCloudBaseURL(baseURL)
         let systemPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? TextCleanup.defaultPrompt : prompt
 
